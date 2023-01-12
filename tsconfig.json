@@ -1,0 +1,23 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/common/tsconfig.ref.json"
+    },
+    {
+      "path": "./packages/backend/tsconfig.ref.json"
+    },
+    {
+      "path": "./packages/aws/tsconfig.ref.json"
+    },
+    {
+      "path": "./packages/cli/tsconfig.ref.json"
+    },
+    {
+      "path": "./packages/frontend/tsconfig.ref.json"
+    },
+    {
+      "path": "./packages/cli-frontend/tsconfig.ref.json"
+    }
+  ],
+}

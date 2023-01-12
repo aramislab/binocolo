@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "ES2020",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "noImplicitAny": true,
+    "declaration": true,
+    "declarationMap": true,
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
+    "typeRoots": [ "node_modules/@types", "types" ],
+    "skipLibCheck": true
+  },
+  "exclude": [ "node_modules", "test", "types" ]
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/packages/aws/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/backend/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/cli-frontend/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/cli/bin" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/frontend/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/aws/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/backend/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/cli/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/common/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/frontend/dist" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+  <component name="TemplatesService">
+    <option name="TEMPLATE_FOLDERS">
+      <list>
+        <option value="$MODULE_DIR$/node_modules/workbox-build/build/templates" />
+      </list>
+    </option>
+  </component>
+</module>

@@ -1,0 +1,36 @@
+{
+  "name": "@binocolo/aws",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "exports": {
+    "./*": "./dist/*"
+  },
+  "typesVersions": {
+    "*": {
+      "*": ["dist/*"]
+    }
+  },
+  "main": "index.js",
+  "scripts": {
+    "clean:dist": "rimraf dist",
+    "check-compilation": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stefanomasini/binocolo.git"
+  },
+  "author": "Stefano Masini <stefano@stefanomasini.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/stefanomasini/binocolo/issues"
+  },
+  "homepage": "https://github.com/stefanomasini/binocolo#readme",
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.245.0",
+    "@binocolo/backend": "*",
+    "@binocolo/common": "*",
+    "typescript": "^4.9.4"
+  }
+}

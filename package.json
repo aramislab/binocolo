@@ -1,0 +1,35 @@
+{
+  "name": "binocolo-monorepo",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "format": "prettier --config .prettierrc --write --check \"packages/*/src/**/*.ts\" \"packages/*/src/**/*.tsx\"",
+    "clean": "tsc --build --clean && npm run clean:dist",
+    "clean:dist": "npm run clean:dist --workspaces",
+    "build": "tsc --build --verbose",
+    "watch": "tsc --build --watch --verbose",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stefanomasini/binocolo.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/stefanomasini/binocolo/issues"
+  },
+  "homepage": "https://github.com/stefanomasini/binocolo#readme",
+  "workspaces": [
+    "packages/common",
+    "packages/backend",
+    "packages/aws",
+    "packages/cli",
+    "packages/frontend",
+    "packages/cli-frontend"
+  ],
+  "devDependencies": {
+    "prettier": "^2.8.2",
+    "rimraf": "^3.0.2"
+  }
+}

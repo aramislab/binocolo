@@ -1,0 +1,40 @@
+{
+  "name": "@binocolo/backend",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "exports": {
+    "./*": "./dist/*"
+  },
+  "typesVersions": {
+    "*": {
+      "*": ["dist/*"]
+    }
+  },
+  "main": "index.js",
+  "scripts": {
+    "clean:dist": "rimraf dist",
+    "check-compilation": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stefanomasini/binocolo.git"
+  },
+  "author": "Stefano Masini <stefano@stefanomasini.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/stefanomasini/binocolo/issues"
+  },
+  "homepage": "https://github.com/stefanomasini/binocolo#readme",
+  "dependencies": {
+    "@binocolo/common": "*",
+    "@fastify/static": "^6.6.0",
+    "@fastify/type-provider-typebox": "^2.4.0",
+    "@fastify/websocket": "^7.1.2",
+    "@sinclair/typebox": "^0.25.20",
+    "pino": "^8.8.0",
+    "pino-pretty": "^9.1.1",
+    "typescript": "^4.9.4"
+  }
+}
