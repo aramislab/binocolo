@@ -1,5 +1,5 @@
 {
-  "name": "binoculog",
+  "name": "binocolo",
   "version": "0.1.0",
   "private": true,
   "homepage": ".",
@@ -52,7 +52,6 @@
     "jest-watch-typeahead": "^1.0.0",
     "jsonpath": "^1.1.1",
     "lodash.debounce": "^4.0.8",
-    "millify": "^5.0.1",
     "mini-css-extract-plugin": "^2.4.5",
     "mobx": "^6.7.0",
     "mobx-react-lite": "^3.4.0",

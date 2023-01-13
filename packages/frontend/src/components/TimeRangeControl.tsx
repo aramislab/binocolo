@@ -10,7 +10,7 @@ import { RegionColorTheme } from '../logic/themes.js';
 import { usePopupMenu } from './PopupMenu.js';
 import { DataSourceConfiguration } from './DataSourceConfiguration.js';
 import { MONOSPACE_FONT, REFERENCE_TEXT_SIZE } from '../logic/types.js';
-import millify from 'millify';
+import { millify } from 'millify';
 import { FieldsPicker } from './FieldsPicker.js';
 
 export const TimeRangeControl = observer(({ config }: { config: LogTableConfiguration }) => {

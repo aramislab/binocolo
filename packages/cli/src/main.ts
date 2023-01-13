@@ -1,20 +1,16 @@
-import { Command, Option } from 'commander';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { IConnectionHandler, INetworkHandler, runHTTPServer, SenderFunction } from '@binocolo/backend/network.js';
-import {
-    BackendCommand,
-    DataSourceConfig,
-    FetchEntriesCommand,
-    LogTableConfigurationParams,
-    RecordsScanningStats,
-} from '@binocolo/common/common.js';
-import { MIN } from '@binocolo/common/types.js';
-import { AWS_CLOUDWATCH_CONFIGURATION, CloudwatchLogsAdapter, QueryDescriptor } from '@binocolo/aws/aws-adapter.js';
+import { QueryDescriptor, IDataSourceAdapter } from '@binocolo/backend/types.js';
+import { BackendCommand, FetchEntriesCommand, LogTableConfigurationParams, RecordsScanningStats } from '@binocolo/common/common.js';
 import { Logger, buildLoggerFromPino } from '@binocolo/backend/logging.js';
 // import openBrowser from 'react-dev-utils/openBrowser';
 import pino from 'pino';
 import { join, resolve } from 'path';
+import { parseCommandLineArguments } from './cli-args.js';
+import { promptForNewDataSourceSpecification } from './interaction.js';
+import { DataSourceSpecification, getDataSourceAdapterFromSpec } from './data-sources.js';
+import { LocalConfiguration } from './local-storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,141 +26,154 @@ const pinoLogger = pino({
     },
 });
 
-const APPLICATIONS = ['cloud', 'rtc'] as const;
-type Application = (typeof APPLICATIONS)[number];
-const ENVIRONMENTS = ['production', 'ondeck', 'staging'] as const;
-type Environment = (typeof ENVIRONMENTS)[number];
+// const APPLICATIONS = ['cloud', 'rtc'] as const;
+// type Application = (typeof APPLICATIONS)[number];
+// const ENVIRONMENTS = ['production', 'ondeck', 'staging'] as const;
+// type Environment = (typeof ENVIRONMENTS)[number];
 
-type ApplicationDefinitions = { [a in Application]: ApplicationDefinition };
+// type ApplicationDefinitions = { [a in Application]: ApplicationDefinition };
 
-type ApplicationDefinition = {
-    environments: { [e in Environment]: EnvironmentDefinition };
-    config: Pick<DataSourceConfig, 'shownProperties' | 'knownProperties'>;
-};
+// type ApplicationDefinition = {
+//     environments: { [e in Environment]: EnvironmentDefinition };
+//     knownProperties: DataSourceConfig['knownProperties'];
+// };
 
-type EnvironmentDefinition = {
-    logGroupNames: string[];
-};
+// type EnvironmentDefinition = {
+//     logGroupNames: string[];
+// };
 
-const APPLICATION_DEFINITIONS: ApplicationDefinitions = {
-    cloud: {
-        config: {
-            shownProperties: ['severity', 'message', 'fields.route.name'],
-            knownProperties: [
-                {
-                    selector: '@timestamp',
-                    name: 'Timestamp',
-                    timestamp: true,
-                    width: 180,
-                },
-                {
-                    selector: 'severity',
-                    name: 'Lev',
-                    width: 50,
-                    knownValues: [
-                        {
-                            value: 'INFO',
-                        },
-                        {
-                            value: 'WARNING',
-                        },
-                        {
-                            value: 'ERROR',
-                            color: 'error',
-                        },
-                    ],
-                },
-                {
-                    selector: 'message',
-                    name: 'Message',
-                    grow: true,
-                },
-                {
-                    selector: 'fields.reqId',
-                    distinctColorsForValues: true,
-                },
-            ],
-        },
-        environments: {
-            production: {
-                logGroupNames: ['convox-prod-cloud-gen2-LogGroup-WQBa068I8II9'],
-            },
-            ondeck: {
-                logGroupNames: [],
-            },
-            staging: {
-                logGroupNames: ['convox-rack-staging-cloud-gen2-LogGroup-swTx7IKUVDBP'],
-            },
-        },
-    },
-    rtc: {
-        config: {
-            shownProperties: ['severity', 'message', 'fields.route.name'],
-            knownProperties: [
-                {
-                    selector: '@timestamp',
-                    name: 'Timestamp',
-                    timestamp: true,
-                    width: 180,
-                },
-                {
-                    selector: 'severity',
-                    name: 'Lev',
-                    width: 50,
-                    knownValues: [
-                        {
-                            value: 'INFO',
-                        },
-                        {
-                            value: 'WARNING',
-                        },
-                        {
-                            value: 'ERROR',
-                            color: 'error',
-                        },
-                    ],
-                },
-                {
-                    selector: 'message',
-                    name: 'Message',
-                    grow: true,
-                },
-            ],
-        },
-        environments: {
-            production: {
-                logGroupNames: ['/aws/lambda/rtc-production-gardening-function', '/aws/lambda/rtc-production-handler-function'],
-            },
-            ondeck: {
-                logGroupNames: [],
-            },
-            staging: {
-                logGroupNames: ['convox-rack-staging-cloud-gen2-LogGroup-swTx7IKUVDBP'],
-            },
-        },
-    },
-};
+// const APPLICATION_DEFINITIONS: ApplicationDefinitions = {
+//     cloud: {
+//         knownProperties: [
+//             {
+//                 selector: '@timestamp',
+//                 name: 'Timestamp',
+//                 timestamp: true,
+//                 width: 180,
+//             },
+//             {
+//                 selector: 'severity',
+//                 name: 'Lev',
+//                 width: 50,
+//                 knownValues: [
+//                     {
+//                         value: 'INFO',
+//                     },
+//                     {
+//                         value: 'WARNING',
+//                     },
+//                     {
+//                         value: 'ERROR',
+//                         color: 'error',
+//                     },
+//                 ],
+//             },
+//             {
+//                 selector: 'message',
+//                 name: 'Message',
+//                 grow: true,
+//             },
+//             {
+//                 selector: 'fields.reqId',
+//                 distinctColorsForValues: true,
+//             },
+//         ],
+//         environments: {
+//             production: {
+//                 logGroupNames: ['convox-prod-cloud-gen2-LogGroup-WQBa068I8II9'],
+//             },
+//             ondeck: {
+//                 logGroupNames: [],
+//             },
+//             staging: {
+//                 logGroupNames: ['convox-rack-staging-cloud-gen2-LogGroup-swTx7IKUVDBP'],
+//             },
+//         },
+//     },
+//     rtc: {
+//         knownProperties: [
+//             {
+//                 selector: '@timestamp',
+//                 name: 'Timestamp',
+//                 timestamp: true,
+//                 width: 180,
+//             },
+//             {
+//                 selector: 'severity',
+//                 name: 'Lev',
+//                 width: 50,
+//                 knownValues: [
+//                     {
+//                         value: 'INFO',
+//                     },
+//                     {
+//                         value: 'WARNING',
+//                     },
+//                     {
+//                         value: 'ERROR',
+//                         color: 'error',
+//                     },
+//                 ],
+//             },
+//             {
+//                 selector: 'message',
+//                 name: 'Message',
+//                 grow: true,
+//             },
+//         ],
+//         environments: {
+//             production: {
+//                 logGroupNames: ['/aws/lambda/rtc-production-gardening-function', '/aws/lambda/rtc-production-handler-function'],
+//             },
+//             ondeck: {
+//                 logGroupNames: [],
+//             },
+//             staging: {
+//                 logGroupNames: ['convox-rack-staging-cloud-gen2-LogGroup-swTx7IKUVDBP'],
+//             },
+//         },
+//     },
+// };
+
+// const dataSources: DataSourceSpecification[] = [
+// dataSourceSpec,
+// {
+//     id: 'dataSource',
+//     name: `${application} ${environment}`,
+//     adapter: {
+//         type: 'AWSCloudWatch',
+//         region: 'us-east-1',
+//         logGroupNames: applicationDefinition.environments[environment].logGroupNames,
+//     },
+//     knownProperties: applicationDefinition.knownProperties,
+//     initialQuery: {
+//         timeRange: {
+//             type: 'relative',
+//             amount: 15,
+//             specifier: 'minutes',
+//         },
+//         shownProperties: ['severity', 'message', 'fields.route.name'],
+//         filters: [
+//             {
+//                 type: 'match',
+//                 include: false,
+//                 selector: 'fields.subsystem',
+//                 values: ['redis', 'metrics', 'database', 'flushevents'],
+//             },
+//         ],
+//     },
+// },
+// ];
 
 type ServiceParams = {
     config: LogTableConfigurationParams;
     logger: Logger;
-    logGroupName: string[];
     port?: number;
     host?: string;
-    verbose?: boolean;
 };
 
 class Service implements INetworkHandler {
-    private readonly cloudwatchLogs: CloudwatchLogsAdapter;
-
-    constructor(private params: ServiceParams) {
-        this.cloudwatchLogs = new CloudwatchLogsAdapter({
-            region: 'us-east-1',
-            logger: params.logger,
-            verbose: params.verbose,
-            logGroupNames: params.logGroupName,
-        });
-    }
+    constructor(private params: ServiceParams, private dataSourceAdaptersMap: DataSourceAdaptersMap) {}
 
     runHTTPServer(onStarted: (url: string) => void): void {
         runHTTPServer({
@@ -178,16 +187,17 @@ class Service implements INetworkHandler {
     }
 
     onConnected(send: SenderFunction): IConnectionHandler {
-        return new ConnectionHandler(send, this.params.config, this.cloudwatchLogs, this.params.logger);
+        return new ConnectionHandler(send, this.params.config, this.dataSourceAdaptersMap, this.params.logger);
     }
 }
 
 class ConnectionHandler implements IConnectionHandler {
     private query: QueryDescriptor | null;
+
     constructor(
         private send: SenderFunction,
         private logTableConfig: LogTableConfigurationParams,
-        private cloudwatchLogs: CloudwatchLogsAdapter,
+        private dataSourceAdaptersMap: DataSourceAdaptersMap,
         private logger: Logger
     ) {
         this.query = null;
@@ -210,11 +220,20 @@ class ConnectionHandler implements IConnectionHandler {
         }
     }
 
-    private async fetchEntries({ timeRange, filters, histogramBreakdownProperty }: FetchEntriesCommand): Promise<void> {
+    private getDataSourceById(dataSourceId: string): IDataSourceAdapter {
+        const adapter = this.dataSourceAdaptersMap.get(dataSourceId);
+        if (!adapter) {
+            throw new Error(`Cannot find data source with ID ${dataSourceId}`);
+        }
+        return adapter;
+    }
+
+    private async fetchEntries({ timeRange, filters, histogramBreakdownProperty, dataSourceId }: FetchEntriesCommand): Promise<void> {
         let errorMessage: string | undefined = undefined;
         let stats: RecordsScanningStats | null | undefined = undefined;
         try {
-            stats = await this.cloudwatchLogs.runCloudWatchLogsQuery({
+            const dataSource = this.getDataSourceById(dataSourceId);
+            stats = await dataSource.queryLogs({
                 timeRange,
                 filters,
                 histogramBreakdownProperty,
@@ -284,78 +303,78 @@ const BALSAMIQ_CONFIGURATION: Pick<LogTableConfigurationParams, 'timezones' | 't
     preambleProperties: ['@timestamp'],
 };
 
-function runCli(): void {
-    const program = new Command();
-    program.name('binoculog').description('Binoculog CLI').version('0.1.0');
-    // program
-    //     .command('split')
-    //     .description('Split a string into substrings and display as an array')
-    //     .argument('<string>', 'string to split')
-    //     .option('--first', 'display just the first substring')
-    //     .option('-s, --separator <char>', 'separator character', ',')
-    //     .action((str, options) => {
-    //         const limit = options.first ? 1 : undefined;
-    //         console.log(str.split(options.separator, limit));
-    //     });
-    program.addOption(new Option('-a, --application <application>', 'Application').choices(APPLICATIONS).makeOptionMandatory(true));
-    program.addOption(new Option('-e, --environment <environment>', 'Environment').choices(ENVIRONMENTS).makeOptionMandatory(true));
-    program.option('-p, --port <port>', 'Port to listen to (default picks the first available open port)');
-    program.option('-h, --host <host>', 'Address to bind (defaults to localhost)');
-    program.option('-v, --verbose', 'Show verbose log');
-    program.option('-n, --nobrowser', 'Do not open browser');
-    program.parse();
+async function runCli(): Promise<void> {
+    const localConfig = new LocalConfiguration();
 
-    const opts = program.opts();
-    const application: Application = opts.application;
-    const environment: Environment = opts.environment;
-    const verbose: boolean = !!opts.verbose;
-
-    const applicationDefinition = APPLICATION_DEFINITIONS[application];
-
-    const end = new Date().getTime();
-    const start = end - 15 * MIN;
-    const CONFIG: LogTableConfigurationParams = {
-        ...BALSAMIQ_CONFIGURATION,
-        initialDataSourceId: 'dataSource',
-        dataSources: [
-            {
-                id: 'dataSource',
-                name: `${application} ${environment}`,
-                ...AWS_CLOUDWATCH_CONFIGURATION,
-                ...applicationDefinition.config,
-                initialQuery: {
-                    timeRange: {
-                        start,
-                        end,
-                    },
-                    filters: [
-                        {
-                            type: 'match',
-                            include: false,
-                            selector: 'fields.subsystem',
-                            values: ['redis', 'metrics', 'database', 'flushevents'],
-                        },
-                    ],
-                },
-            },
-        ],
-    };
+    if (!(await localConfig.exists())) {
+        console.log(`Local configuration missing. Creating a new one at ${localConfig.path}`);
+        const dataSourceSpec = await promptForNewDataSourceSpecification();
+        localConfig.initialize(dataSourceSpec);
+    }
 
     const logger = buildLoggerFromPino(pinoLogger);
 
-    const service = new Service({
-        config: CONFIG,
-        logger,
-        logGroupName: applicationDefinition.environments[environment].logGroupNames,
-        verbose,
-        host: opts.host,
-        port: opts.port,
-    });
-    service.runHTTPServer((url) => {
-        if (!opts.nobrowser) {
-            // openBrowser(url);
-        }
-    });
+    const command = parseCommandLineArguments();
+
+    const commandType = command.type;
+    switch (commandType) {
+        case 'addDataSource':
+            const dataSourceSpec = await promptForNewDataSourceSpecification();
+            try {
+                localConfig.addDataSource(dataSourceSpec);
+            } catch (err) {
+                console.error(`ERROR: ${err}`);
+            }
+            break;
+        case 'runServer':
+            if (command.verbose) {
+                logger.info(`Local configuration: ${localConfig.path}`);
+            }
+            const dataSources: DataSourceSpecification[] = localConfig.getDataSources();
+
+            let dataSourceAdaptersMap: DataSourceAdaptersMap = new Map();
+            const dataSourcesConfig: LogTableConfigurationParams['dataSources'] = [];
+            for (let dataSourceSpec of dataSources) {
+                const adapter = getDataSourceAdapterFromSpec(dataSourceSpec.adapter, logger, command.verbose);
+                dataSourceAdaptersMap.set(dataSourceSpec.id, adapter);
+                dataSourcesConfig.push({
+                    id: dataSourceSpec.id,
+                    name: dataSourceSpec.name,
+                    ...adapter.specs,
+                    knownProperties: dataSourceSpec.knownProperties,
+                    initialQuery: adapter.defaultQuery,
+                });
+            }
+
+            const CONFIG: LogTableConfigurationParams = {
+                ...BALSAMIQ_CONFIGURATION,
+                initialDataSourceId: localConfig.getCurrentDataSourceId(),
+                dataSources: dataSourcesConfig,
+            };
+
+            const service = new Service(
+                {
+                    config: CONFIG,
+                    logger,
+                    host: command.host,
+                    port: command.port,
+                },
+                dataSourceAdaptersMap
+            );
+            service.runHTTPServer((url) => {
+                if (!command.nobrowser) {
+                    // openBrowser(url);
+                }
+            });
+            break;
+        default:
+            const exhaustiveCheck: never = commandType;
+            throw new Error(`Unhandled command.type: ${exhaustiveCheck}`);
+    }
 }
 
-runCli();
+type DataSourceAdaptersMap = Map<string, IDataSourceAdapter>;
+
+runCli().catch((err) => {
+    console.error(err);
+});

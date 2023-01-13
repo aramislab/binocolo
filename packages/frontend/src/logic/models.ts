@@ -44,6 +44,7 @@ import { ColorTheme, DEFAULT_COLOR_THEME } from './themes.js';
 import { filterMatches, makeFilterId } from './filters.js';
 import { calculatePropertyNodeSize, inspectPayload, makeEmptyPropertyNode, visitPayload } from './inspect_payload.js';
 import { FrequencyStats, mergeFrequencyStats, PropertyValueStatsCalculator } from './value_frequencies.js';
+import { getTimeRangeFromSpecification } from '@binocolo/common/time.js';
 
 const MIN_COLUMN_WIDTH = 50;
 const DEFAULT_COLUMN_WIDTH = 180;
@@ -136,7 +137,7 @@ export class LogTableConfiguration {
         this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
 
         // this.preambleProperties = this.getCurrentDataSource().preambleProperties.map(parseFieldSelectorText);
-        this.shownProperties = this.getCurrentDataSource().shownProperties.map(parseFieldSelectorText);
+        this.shownProperties = this.getCurrentDataSource().initialQuery.shownProperties.map(parseFieldSelectorText);
         this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
         this.timeFormat = {
             timestampFormat: TIMESTAMP_FORMAT,
@@ -165,7 +166,7 @@ export class LogTableConfiguration {
         this.serverError = null;
         this.dataBundleStats = null;
 
-        this.elaboratedTimeRange = elaborateTimeRange(this.getCurrentDataSource().initialQuery.timeRange);
+        this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
         this.dataSourceTimeRange = this.elaboratedTimeRange.timeRange;
         this.histogram = null;
 
@@ -358,6 +359,7 @@ export class LogTableConfiguration {
             timeRange: this.dataSourceTimeRange,
             filters: this.dataSourceFilters,
             histogramBreakdownProperty: this.histogramBreakdownProperty,
+            dataSourceId: this.currentDataSourceId,
         });
     }
 

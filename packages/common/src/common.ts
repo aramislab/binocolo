@@ -17,6 +17,7 @@ export type HistogramDataSeries = {
 
 export type FetchEntriesCommand = {
     type: 'fetchEntries';
+    dataSourceId: string;
     timeRange: TimeRange;
     filters: DataSourceFilter[];
     histogramBreakdownProperty: JSONFieldSelector | null;
@@ -70,92 +71,12 @@ export function parseClientCommand(data: any): ClientCommand {
     return data as ClientCommand;
 }
 
-// ---- Configuration ------------------------------------
-
-export type LogTableConfigurationParams = {
-    dataSources: DataSourceConfig[];
-    initialDataSourceId: string;
-    preambleProperties: string[];
-    timezones: {
-        timezones: TimezoneConfig[];
-        defaultTimezone: string;
-    };
-    timeRanges: TimeRangesSpecs;
-};
-
-export type DataSourceConfig = {
-    id: string;
-    name: string;
-    knownProperties: PropertyConfiguration[];
-    shownProperties: string[];
-    supportedFilters: PartialDataSourceFilter[];
-    timestampPropertySelector: string;
-    initialQuery: {
-        timeRange: TimeRange;
-        filters: DataSourceFilter[];
-    };
-};
-
-export type PropertyConfiguration = {
-    selector: string;
-    name?: string;
-    width?: number;
-    grow?: boolean;
-    timestamp?: boolean;
-    distinctColorsForValues?: boolean;
-    knownValues?: {
-        value: JSONBasicType;
-        color?: HighlightLevel;
-    }[];
-};
-
-export type HighlightLevel = 'error' | 'warning' | 'normal';
-
-// -- Time Range --------------------
-
-export type TimeRangeSpecifierIds = 'months' | 'weeks' | 'days' | 'hours' | 'minutes';
-
-export const TIME_RANGE_SPECIFIERS: { name: string; kind: TimeRangeSpecifierIds; durationInMs: number }[] = [
-    {
-        name: 'Minutes',
-        kind: 'minutes',
-        durationInMs: MIN,
-    },
-    {
-        name: 'Hours',
-        kind: 'hours',
-        durationInMs: HOUR,
-    },
-    {
-        name: 'Days',
-        kind: 'days',
-        durationInMs: DAY,
-    },
-    {
-        name: 'Weeks',
-        kind: 'weeks',
-        durationInMs: DAY * 7,
-    },
-    {
-        name: 'Months',
-        kind: 'months',
-        durationInMs: DAY * 30,
-    },
-];
-
-export type TimeRangesSpecs = { [k in TimeRangeSpecifierIds]: number[] };
-
-export type TimezoneConfig = {
-    id: string;
-    description: string;
-    timezone: string;
-};
-
 // -- JSON --------------------
 
 export type JSONBasicTypeName = 'string' | 'number' | 'boolean' | 'null';
 
 export type JSONBasicType = string | number | boolean | null;
+
 export type JSONType = JSONBasicType | JSONType[] | { [key: string]: JSONType };
 
 export function isJSONBasicType(value: any): value is JSONBasicType {
@@ -233,6 +154,97 @@ export function parseFieldSelectorText(text: string): JSONFieldSelector {
     }
     return result;
 }
+
+// ---- Configuration ------------------------------------
+
+export type LogTableConfigurationParams = {
+    dataSources: DataSourceConfig[];
+    initialDataSourceId: string;
+    preambleProperties: string[];
+    timezones: {
+        timezones: TimezoneConfig[];
+        defaultTimezone: string;
+    };
+    timeRanges: TimeRangesSpecs;
+};
+
+export type DataSourceConfig = {
+    id: string;
+    name: string;
+    knownProperties: PropertyConfiguration[];
+    supportedFilters: PartialDataSourceFilter[];
+    timestampPropertySelector: string;
+    initialQuery: {
+        timeRange: TimeRangeSpecification;
+        shownProperties: string[];
+        filters: DataSourceFilter[];
+    };
+};
+
+export type DataSourceSpecs = Pick<DataSourceConfig, 'supportedFilters' | 'timestampPropertySelector'>;
+
+export type TimeRangeSpecification = RelativeTimeRangeSpecification;
+
+export type RelativeTimeRangeSpecification = {
+    type: 'relative';
+    amount: number;
+    specifier: TimeRangeSpecifierIds;
+};
+
+export type HighlightLevel = 'error' | 'warning' | 'normal';
+
+export type PropertyConfiguration = {
+    selector: string;
+    name?: string;
+    width?: number;
+    grow?: boolean;
+    timestamp?: boolean;
+    distinctColorsForValues?: boolean;
+    knownValues?: {
+        value: JSONBasicType;
+        color?: HighlightLevel;
+    }[];
+};
+
+// -- Time Range --------------------
+
+export type TimeRangeSpecifierIds = 'months' | 'weeks' | 'days' | 'hours' | 'minutes';
+
+export const TIME_RANGE_SPECIFIERS: { name: string; kind: TimeRangeSpecifierIds; durationInMs: number }[] = [
+    {
+        name: 'Minutes',
+        kind: 'minutes',
+        durationInMs: MIN,
+    },
+    {
+        name: 'Hours',
+        kind: 'hours',
+        durationInMs: HOUR,
+    },
+    {
+        name: 'Days',
+        kind: 'days',
+        durationInMs: DAY,
+    },
+    {
+        name: 'Weeks',
+        kind: 'weeks',
+        durationInMs: DAY * 7,
+    },
+    {
+        name: 'Months',
+        kind: 'months',
+        durationInMs: DAY * 30,
+    },
+];
+
+export type TimeRangesSpecs = { [k in TimeRangeSpecifierIds]: number[] };
+
+export type TimezoneConfig = {
+    id: string;
+    description: string;
+    timezone: string;
+};
 
 // ---- Filters ------------------------------------
 

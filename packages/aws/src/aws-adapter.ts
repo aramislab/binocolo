@@ -6,24 +6,27 @@ import {
     QueryStatistics,
 } from '@aws-sdk/client-cloudwatch-logs';
 import { Logger } from '@binocolo/backend/logging';
-import { InputLogEntry } from '@binocolo/backend/types';
+import { InputLogEntry, IDataSourceAdapter, QueryDescriptor } from '@binocolo/backend/types';
 import {
-    DataSourceConfig,
+    DataSourceSpecs,
     DataSourceFilter,
     HistogramDataSeries,
     JSONFieldSelector,
     makeStringFromJSONFieldSelector,
     RecordsScanningStats,
+    DataSourceConfig,
 } from '@binocolo/common/common.js';
 import { ElaboratedTimeRange, elaborateTimeRange } from '@binocolo/common/time.js';
 import { HOUR, MIN, SEC, TimeRange } from '@binocolo/common/types.js';
 
-export type QueryDescriptor = {
-    stop(): void;
-};
-
 const QUERY_RESULTS_LIMIT = 5000;
 const DELAY_BETWEEN_API_CALLS_IN_MS = 500;
+
+export type AWSCloudWatchDataSourceSpecification = {
+    type: 'AWSCloudWatch';
+    region: string;
+    logGroupNames: string[];
+};
 
 type CloudwatchLogsAdapterParams = {
     region: string;
@@ -32,32 +35,40 @@ type CloudwatchLogsAdapterParams = {
     logGroupNames: string[];
 };
 
-export const AWS_CLOUDWATCH_CONFIGURATION: Pick<DataSourceConfig, 'supportedFilters' | 'timestampPropertySelector'> = {
-    supportedFilters: [
-        {
-            type: 'match',
-        },
-        {
-            type: 'exists',
-            exists: true,
-            considerNulls: true,
-        },
-        {
-            type: 'exists',
-            exists: false,
-            considerNulls: true,
-        },
-    ],
-    timestampPropertySelector: '@timestamp',
-};
-
 // Documentation: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html
 
-export class CloudwatchLogsAdapter {
+export class CloudwatchLogsAdapter implements IDataSourceAdapter {
     private client: CloudWatchLogsClient;
     private logger: Logger;
     private readonly verbose: boolean;
     private readonly logGroupNames: string[];
+    public specs: DataSourceSpecs = {
+        supportedFilters: [
+            {
+                type: 'match',
+            },
+            {
+                type: 'exists',
+                exists: true,
+                considerNulls: true,
+            },
+            {
+                type: 'exists',
+                exists: false,
+                considerNulls: true,
+            },
+        ],
+        timestampPropertySelector: '@timestamp',
+    };
+    public defaultQuery: DataSourceConfig['initialQuery'] = {
+        filters: [],
+        shownProperties: ['severity', 'message'],
+        timeRange: {
+            type: 'relative',
+            amount: 15,
+            specifier: 'minutes',
+        },
+    };
 
     constructor({ region, logger, verbose, logGroupNames }: CloudwatchLogsAdapterParams) {
         this.logger = logger;
@@ -66,7 +77,7 @@ export class CloudwatchLogsAdapter {
         this.logGroupNames = logGroupNames;
     }
 
-    async runCloudWatchLogsQuery({
+    async queryLogs({
         timeRange,
         filters,
         onStarted,
@@ -149,15 +160,21 @@ export class CloudwatchLogsAdapter {
             (async () => {
                 let nextEventId: number = 1;
                 let reportedEntries: Set<string> = new Set();
+                const fields: string[] = [
+                    'toMillis(@timestamp) as @timestamp',
+                    'toMillis(@ingestionTime) as @ingestionTime',
+                    '@message',
+                    '@log',
+                    '@logStream',
+                    '@duration',
+                ];
                 const { stats } = await this._runCloudWatchLogsQuery({
                     label: 'lines',
                     onlyLastBatch: true,
                     timeRange: elaboratedTimeRange.timeRange,
                     logGroupNames: this.logGroupNames,
                     query: new CloudWatchQueryBuilder()
-                        .fields(
-                            'toMillis(@timestamp) as @timestamp, toMillis(@ingestionTime) as @ingestionTime, @message, @log, @logStream'
-                        )
+                        .fields(fields.join(', '))
                         .filters(filters)
                         .sort('@timestamp desc')
                         .limit(QUERY_RESULTS_LIMIT)
@@ -353,6 +370,9 @@ function parseResultRow(row: ResultField[]): { ptr: string; ts: number; payload:
     // payload['@ptr'] = values['@ptr'];
     payload['@log'] = values['@log'];
     payload['@logStream'] = values['@logStream'];
+    if (values['@duration'] !== undefined) {
+        payload['@duration'] = parseFloat(values['@duration']);
+    }
     return { ptr: values['@ptr'], ts, payload };
 }
 

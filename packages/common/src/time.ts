@@ -1,4 +1,5 @@
-import { DAY, TimeRange } from './types.js';
+import { DAY, HOUR, MIN, TimeRange } from './types.js';
+import { TimeRangeSpecification } from './common';
 
 type BucketSpec = {
     name: string;
@@ -160,4 +161,39 @@ export function durationToText(timeRange: TimeRange): string {
     }
     const days = Math.round(hours / 24);
     return `~ ${days} days`;
+}
+
+export function getTimeRangeFromSpecification(spec: TimeRangeSpecification): TimeRange {
+    const typeName = spec.type;
+    switch (typeName) {
+        case 'relative':
+            const specifier = spec.specifier;
+            let duration: number;
+            switch (specifier) {
+                case 'months':
+                    duration = DAY * 30;
+                    break;
+                case 'weeks':
+                    duration = DAY * 7;
+                    break;
+                case 'days':
+                    duration = DAY;
+                    break;
+                case 'hours':
+                    duration = HOUR;
+                    break;
+                case 'minutes':
+                    duration = MIN;
+                    break;
+                default:
+                    const exhaustiveCheck: never = specifier;
+                    throw new Error(`Unhandled spec.specifier: ${exhaustiveCheck}`);
+            }
+            const end = new Date().getTime();
+            const start = end - spec.amount * duration;
+            return { start, end };
+        default:
+            const exhaustiveCheck: never = typeName;
+            throw new Error(`Unhandled spec.type: ${exhaustiveCheck}`);
+    }
 }

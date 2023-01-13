@@ -6,7 +6,9 @@
   },
   "typesVersions": {
     "*": {
-      "*": ["dist/*"]
+      "*": [
+        "dist/*"
+      ]
     }
   },
   "scripts": {
@@ -14,11 +16,11 @@
     "compile": "tsc",
     "check-compilation": "tsc --noEmit",
     "server": "node dist/main.js",
-    "server-dev": "node dist/main.js -v -h 127.0.0.1 -p 63546 -n",
+    "server-dev": "node dist/main.js -v -o 127.0.0.1 -p 63546 -n",
     "test": "npm run compile && mocha -r ts-node/register 'dist/tests/**/*.js'"
   },
   "bin": {
-    "binoculog": "bin/cli.js"
+    "binocolo": "bin/cli.js"
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.228.0",
@@ -28,12 +30,15 @@
     "@fastify/static": "^6.6.0",
     "@fastify/type-provider-typebox": "^2.3.0",
     "@fastify/websocket": "^7.1.1",
-    "@sinclair/typebox": "^0.25.13",
+    "@sinclair/typebox": "^0.25.20",
+    "ajv": "^8.12.0",
     "chalk": "^4.1.2",
     "commander": "^9.4.1",
+    "conf": "^10.2.0",
     "date-fns": "^2.29.3",
     "fastify": "^4.7.0",
     "http-errors": "^2.0.0",
+    "inquirer": "^9.1.4",
     "pino": "^8.8.0",
     "pino-pretty": "^9.1.1",
     "ts-node": "^10.9.1",
@@ -42,6 +47,7 @@
   "devDependencies": {
     "@types/chai": "^4.3.3",
     "@types/http-errors": "^1.8.2",
+    "@types/inquirer": "^9.0.3",
     "@types/node": "^18.8.0",
     "@types/pg": "^8.6.5",
     "@types/sinonjs__fake-timers": "^8.1.2",
