@@ -117,6 +117,7 @@ export class LogTableConfiguration {
     private dataSourceTimeRange: TimeRange;
     public elaboratedTimeRange: ElaboratedTimeRange;
     public histogram: HistogramDataSeries[] | null;
+    public dataSources: DataSourceConfig[];
 
     public colorTheme: ColorTheme;
 
@@ -127,6 +128,7 @@ export class LogTableConfiguration {
         this.colorTheme = DEFAULT_COLOR_THEME;
         this.timeRanges = params.timeRanges;
         this.preambleProperties = params.preambleProperties;
+        this.dataSources = params.dataSources;
 
         this.dataSourcesMap = new Map();
         for (let dataSource of params.dataSources) {
@@ -220,7 +222,30 @@ export class LogTableConfiguration {
             changeTimeRange: action,
             stopQuery: action,
             setHistogramBreakdownProperty: action,
+            changeDataSource: action,
         });
+    }
+
+    public changeDataSource(dataSourceId: string): void {
+        this.currentDataSourceId = dataSourceId;
+        this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
+        this.shownProperties = this.getCurrentDataSource().initialQuery.shownProperties.map(parseFieldSelectorText);
+        this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
+        this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
+        this.dataSourceTimeRange = this.elaboratedTimeRange.timeRange;
+        this.histogram = null;
+
+        this.updatePropertiesMap();
+        this.computePropertiesData();
+        this.computeColumns();
+
+        this.visualizationFilters = [];
+        this.dataSourceFilters = this.getCurrentDataSource().initialQuery.filters;
+        this.entriesStorage = new LogEntriesStorage();
+        this.entriesSelection = new LogEntriesSelection(this.entryMatchesFilters.bind(this), null, this.getKnownPropertiesMap());
+        this.numInputEntries = 0;
+
+        this.loadEntriesFromDataSource();
     }
 
     private getKnownPropertiesMap(): Map<string, PropertyConfiguration> {

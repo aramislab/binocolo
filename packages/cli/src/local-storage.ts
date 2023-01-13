@@ -103,6 +103,20 @@ export class LocalConfiguration {
     getCurrentDataSourceId(): string {
         return this.getData().conf.currentDataSourceId;
     }
+
+    setCurrentDataSourceId(dataSourceId: string): void {
+        let data = this.getData();
+        for (let dataSource of data.conf.dataSources) {
+            if (dataSource.id === dataSourceId) {
+                if (data.conf.currentDataSourceId !== dataSourceId) {
+                    data.conf.currentDataSourceId = dataSourceId;
+                    this.store.set('data', data);
+                }
+                return;
+            }
+        }
+        throw new Error(`Invalid data source ID: ${dataSourceId}`);
+    }
 }
 
 export type EmptyValue = null | undefined | false;

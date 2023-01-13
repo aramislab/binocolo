@@ -170,6 +170,7 @@ type ServiceParams = {
     logger: Logger;
     port?: number;
     host?: string;
+    localConfig: LocalConfiguration;
 };
 
 class Service implements INetworkHandler {
@@ -187,7 +188,7 @@ class Service implements INetworkHandler {
     }
 
     onConnected(send: SenderFunction): IConnectionHandler {
-        return new ConnectionHandler(send, this.params.config, this.dataSourceAdaptersMap, this.params.logger);
+        return new ConnectionHandler(send, this.params.config, this.dataSourceAdaptersMap, this.params.logger, this.params.localConfig);
     }
 }
 
@@ -198,7 +199,8 @@ class ConnectionHandler implements IConnectionHandler {
         private send: SenderFunction,
         private logTableConfig: LogTableConfigurationParams,
         private dataSourceAdaptersMap: DataSourceAdaptersMap,
-        private logger: Logger
+        private logger: Logger,
+        private localConfig: LocalConfiguration
     ) {
         this.query = null;
     }
@@ -210,6 +212,7 @@ class ConnectionHandler implements IConnectionHandler {
     async onMessage(command: BackendCommand): Promise<void> {
         switch (command.type) {
             case 'fetchEntries':
+                this.localConfig.setCurrentDataSourceId(command.dataSourceId);
                 return await this.fetchEntries(command);
             case 'stopQuery':
                 this.stopQuery();
@@ -358,6 +361,7 @@ async function runCli(): Promise<void> {
                     logger,
                     host: command.host,
                     port: command.port,
+                    localConfig,
                 },
                 dataSourceAdaptersMap
             );
