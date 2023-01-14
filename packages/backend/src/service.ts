@@ -6,48 +6,51 @@ import { IDataSourceSpecificationsStorage } from './types.js';
 import { IConnectionHandler, INetworkHandler, runHTTPServer, SenderFunction } from './network.js';
 import { BackendCommand, FetchEntriesCommand, LogTableConfigurationParams, RecordsScanningStats } from '@binocolo/common/common.js';
 
-export type DataSourceSpecification<DataSourceAdapterSpecification> = {
+type ServiceSpecs = {
+    DataSourceAdapter: any;
+    DataSourceSet: any;
+};
+
+export type DataSourceSpecification<S extends ServiceSpecs> = {
     id: string;
     name: string;
-    adapter: DataSourceAdapterSpecification;
+    adapter: S['DataSourceAdapter'];
     knownProperties: PropertyConfiguration[];
 };
 
-type getDataSourceAdapterFromSpec<DataSourceAdapterSpecification> = (
-    spec: DataSourceAdapterSpecification,
+type GetterDataSourceAdapterFromSpec<S extends ServiceSpecs> = (
+    spec: S['DataSourceAdapter'],
     logger: Logger,
     verbose: boolean
 ) => IDataSourceAdapter;
 
-type ServiceParams<DataSourceSetSpecification, DataSourceAdapterSpecification> = {
+type ServiceParams<S extends ServiceSpecs> = {
     logger: Logger;
     pinoLogger: PinoLogger;
     port?: number;
     host?: string;
-    configurationStorage: IConfigurationStorage<DataSourceSetSpecification, DataSourceAdapterSpecification>;
+    configurationStorage: IConfigurationStorage<S>;
     verbose: boolean;
-    getDataSourceAdapterFromSpec: getDataSourceAdapterFromSpec<DataSourceAdapterSpecification>;
+    getDataSourceAdapterFromSpec: GetterDataSourceAdapterFromSpec<S>;
     staticRootDir: string;
 };
 
-export type DataSourceSetDescriptor<DataSourceSetSpecification> = {
+export type DataSourceSetDescriptor<S extends ServiceSpecs> = {
     id: string;
     name: string;
-    spec: DataSourceSetSpecification;
+    spec: S['DataSourceSet'];
 };
 
-export interface IConfigurationStorage<DataSourceSetSpecification, DataSourceAdapterSpecification> {
-    getDataSourceSetDescriptors(): Promise<DataSourceSetDescriptor<DataSourceSetSpecification>[]>;
-    getDataSourceSetStorage(
-        setId: string
-    ): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<DataSourceAdapterSpecification>>>;
+export interface IConfigurationStorage<S extends ServiceSpecs> {
+    getDataSourceSetDescriptors(): Promise<DataSourceSetDescriptor<S>[]>;
+    getDataSourceSetStorage(setId: string): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<S>>>;
     getCurrentDataSourceId(): Promise<string>;
-    getDataSources(): Promise<DataSourceSpecification<DataSourceAdapterSpecification>[]>;
+    getDataSources(): Promise<DataSourceSpecification<S>[]>;
     setCurrentDataSourceId(dataSourceId: string): Promise<void>;
 }
 
-export class Service<DataSourceSetSpecification, DataSourceAdapterSpecification> implements INetworkHandler {
-    constructor(private params: ServiceParams<DataSourceSetSpecification, DataSourceAdapterSpecification>) {}
+export class Service<S extends ServiceSpecs> implements INetworkHandler {
+    constructor(private params: ServiceParams<S>) {}
 
     runHTTPServer(onStarted: (url: string) => void): void {
         runHTTPServer({
@@ -73,16 +76,16 @@ export class Service<DataSourceSetSpecification, DataSourceAdapterSpecification>
 
 type DataSourceAdaptersMap = Map<string, IDataSourceAdapter>;
 
-class ConnectionHandler<DataSourceSetSpecification, DataSourceAdapterSpecification> implements IConnectionHandler {
+class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
     private query: QueryDescriptor | null;
     private dataSourceAdaptersMap: DataSourceAdaptersMap;
 
     constructor(
         private send: SenderFunction,
         private logger: Logger,
-        private configurationStorage: IConfigurationStorage<DataSourceSetSpecification, DataSourceAdapterSpecification>,
+        private configurationStorage: IConfigurationStorage<S>,
         private verbose: boolean,
-        private getDataSourceAdapterFromSpec: getDataSourceAdapterFromSpec<DataSourceAdapterSpecification>
+        private getDataSourceAdapterFromSpec: GetterDataSourceAdapterFromSpec<S>
     ) {
         this.query = null;
         this.dataSourceAdaptersMap = new Map();
@@ -93,7 +96,7 @@ class ConnectionHandler<DataSourceSetSpecification, DataSourceAdapterSpecificati
         const dataSourcesConfig: LogTableConfigurationParams['dataSources'] = [];
         for (let dataSourceSetSpec of dataSourceSets) {
             let dataSourceSet = await this.configurationStorage.getDataSourceSetStorage(dataSourceSetSpec.id);
-            const dataSources: DataSourceSpecification<DataSourceAdapterSpecification>[] = await dataSourceSet.getDataSources();
+            const dataSources: DataSourceSpecification<S>[] = await dataSourceSet.getDataSources();
             for (let dataSourceSpec of dataSources) {
                 const adapter = this.getDataSourceAdapterFromSpec(dataSourceSpec.adapter, this.logger, this.verbose);
                 const id = `${dataSourceSetSpec.id}:${dataSourceSpec.id}`;

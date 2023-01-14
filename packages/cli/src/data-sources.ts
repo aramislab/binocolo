@@ -67,7 +67,7 @@ type SerializedDataSourceSpecifications = Static<typeof SerializedDataSourceSpec
 export function deserializeDataSourceSpecifications(
     data: any,
     dataName: string
-): { dataSources: DataSourceSpecification<DataSourceAdapterSpecification>[]; obsolete: boolean } {
+): { dataSources: DataSourceSpecification<ServiceSpecs>[]; obsolete: boolean } {
     const dataOnDisk = validateJson<SerializedDataSourceSpecifications>(
         data,
         SerializedDataSourceSpecificationsSchema,
@@ -84,7 +84,7 @@ export function deserializeDataSourceSpecifications(
 }
 
 export function serializeDataSourceSpecifications(
-    dataSources: DataSourceSpecification<DataSourceAdapterSpecification>[]
+    dataSources: DataSourceSpecification<ServiceSpecs>[]
 ): CurrentSerializedDataSourceSpecifications {
     return {
         v: 1,
@@ -102,4 +102,9 @@ export type LocalDataSourceSetDescriptor = {
     id: string;
     name: string;
     spec: DataSourceSetSpecification;
+};
+
+export type ServiceSpecs = {
+    DataSourceAdapter: DataSourceAdapterSpecification;
+    DataSourceSet: DataSourceSetSpecification;
 };

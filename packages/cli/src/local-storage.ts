@@ -6,8 +6,7 @@ import {
     LocalDataSourceSetDescriptor,
     deserializeDataSourceSpecifications,
     serializeDataSourceSpecifications,
-    DataSourceSetSpecification,
-    DataSourceAdapterSpecification,
+    ServiceSpecs,
 } from './data-sources.js';
 import { DataSourceSpecification, IConfigurationStorage } from '@binocolo/backend/service.js';
 import { validateJson } from '@binocolo/backend/json-validation.js';
@@ -45,7 +44,7 @@ type SerializedLocalConfigurationData = Static<typeof SerializedLocalConfigurati
 
 type LocalConfigurationData = {
     currentDataSourceId: string;
-    dataSources: DataSourceSpecification<DataSourceAdapterSpecification>[];
+    dataSources: DataSourceSpecification<ServiceSpecs>[];
     dataSourcesSets: LocalDataSourceSetDescriptor[];
 };
 
@@ -55,9 +54,7 @@ type LocalConfigurationParams = {
 };
 
 export class LocalConfiguration
-    implements
-        IDataSourceSpecificationsStorage<DataSourceSpecification<DataSourceAdapterSpecification>>,
-        IConfigurationStorage<DataSourceSetSpecification, DataSourceAdapterSpecification>
+    implements IDataSourceSpecificationsStorage<DataSourceSpecification<ServiceSpecs>>, IConfigurationStorage<ServiceSpecs>
 {
     private store: ConfStore;
     public path: string;
@@ -82,7 +79,7 @@ export class LocalConfiguration
         return true;
     }
 
-    initialize(dataSourceSpec: DataSourceSpecification<DataSourceAdapterSpecification>): void {
+    initialize(dataSourceSpec: DataSourceSpecification<ServiceSpecs>): void {
         this.setData({
             currentDataSourceId: dataSourceSpec.id,
             dataSources: [dataSourceSpec],
@@ -107,9 +104,7 @@ export class LocalConfiguration
         this.setData(data);
     }
 
-    async getDataSourceSetStorage(
-        setId: string
-    ): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<DataSourceAdapterSpecification>>> {
+    async getDataSourceSetStorage(setId: string): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<ServiceSpecs>>> {
         for (let descriptor of await this.getDataSourceSetDescriptors()) {
             if (descriptor.id === setId) {
                 const specType = descriptor.spec.type;
@@ -135,7 +130,7 @@ export class LocalConfiguration
         throw new Error(`Data source set with name ${name} not found`);
     }
 
-    async addDataSource(dataSourceSpec: DataSourceSpecification<DataSourceAdapterSpecification>): Promise<void> {
+    async addDataSource(dataSourceSpec: DataSourceSpecification<ServiceSpecs>): Promise<void> {
         let data = this.getData();
         for (let other of data.dataSources) {
             if (other.id === dataSourceSpec.id) {
@@ -176,7 +171,7 @@ export class LocalConfiguration
         this.store.set('data', dataOnDisk);
     }
 
-    async getDataSources(): Promise<DataSourceSpecification<DataSourceAdapterSpecification>[]> {
+    async getDataSources(): Promise<DataSourceSpecification<ServiceSpecs>[]> {
         return this.getData().dataSources;
     }
 

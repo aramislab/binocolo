@@ -1,6 +1,5 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { IDataSourceAdapter } from '@binocolo/backend/types.js';
 import { buildLoggerFromPino } from '@binocolo/backend/logging.js';
 import { Service } from '@binocolo/backend/service.js';
 // import openBrowser from 'react-dev-utils/openBrowser';
@@ -8,7 +7,7 @@ import pino from 'pino';
 import { join, resolve } from 'path';
 import { parseCommandLineArguments } from './cli-args.js';
 import { promptForNewDataSourceSetSpecification, promptForNewDataSourceSpecification } from './interaction.js';
-import { getDataSourceAdapterFromSpec } from './data-sources.js';
+import { getDataSourceAdapterFromSpec, ServiceSpecs } from './data-sources.js';
 import { LocalConfiguration } from './local-storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -151,7 +150,7 @@ async function runCli(): Promise<void> {
             if (command.verbose) {
                 logger.info(`Local configuration: ${localConfig.path}`);
             }
-            const service = new Service({
+            const service = new Service<ServiceSpecs>({
                 logger,
                 host: command.host,
                 port: command.port,

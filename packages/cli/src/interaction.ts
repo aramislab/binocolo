@@ -1,10 +1,10 @@
 import inquirer from 'inquirer';
-import { LocalDataSourceSetDescriptor, DataSourceAdapterSpecification } from './data-sources.js';
+import { LocalDataSourceSetDescriptor, ServiceSpecs } from './data-sources.js';
 import { DataSourceSpecification } from '@binocolo/backend/service.js';
 
 export async function promptForNewDataSourceSpecification(
     dataSourceSets: LocalDataSourceSetDescriptor[]
-): Promise<{ spec: DataSourceSpecification<DataSourceAdapterSpecification>; dataSourceSetId: string }> {
+): Promise<{ spec: DataSourceSpecification<ServiceSpecs>; dataSourceSetId: string }> {
     if (dataSourceSets.length < 1) {
         throw new Error('Must provide at least one data source set name');
     }
