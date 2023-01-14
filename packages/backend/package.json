@@ -8,7 +8,9 @@
   },
   "typesVersions": {
     "*": {
-      "*": ["dist/*"]
+      "*": [
+        "dist/*"
+      ]
     }
   },
   "main": "index.js",
@@ -33,6 +35,7 @@
     "@fastify/type-provider-typebox": "^2.4.0",
     "@fastify/websocket": "^7.1.2",
     "@sinclair/typebox": "^0.25.20",
+    "ajv": "^8.12.0",
     "pino": "^8.8.0",
     "pino-pretty": "^9.1.1",
     "typescript": "^4.9.4"

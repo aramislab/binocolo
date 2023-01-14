@@ -38,3 +38,8 @@ export interface IDataSourceAdapter {
     queryLogs: (params: QueryLogsParams) => Promise<RecordsScanningStats | null>;
     defaultQuery: DataSourceConfig['initialQuery'];
 }
+
+export interface IDataSourceSpecificationsStorage<DataSourceSpecification> {
+    getDataSources(): Promise<DataSourceSpecification[]>;
+    addDataSource(dataSourceSpec: DataSourceSpecification): Promise<void>;
+}

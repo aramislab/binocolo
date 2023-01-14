@@ -55,7 +55,7 @@ export function runHTTPServer({ port, host, handler, pinoLogger, onStarted, stat
             };
             let connectionHandler: IConnectionHandler | null = handler.onConnected(send);
             connectionHandler.start().catch((err) => {
-                pinoLogger.error('Unexpected error while starting connection handler', err);
+                pinoLogger.error({ message: 'Unexpected error while starting connection handler', err });
             });
             connection.socket.on('message', (rawData: any) => {
                 let message: BackendCommand;
@@ -67,17 +67,17 @@ export function runHTTPServer({ port, host, handler, pinoLogger, onStarted, stat
                 }
                 if (connectionHandler) {
                     connectionHandler.onMessage(message).catch((err) => {
-                        pinoLogger.error('Unexpected error while handling message', err);
+                        pinoLogger.error({ message: 'Unexpected error while handling message', err });
                     });
                 } else {
                     pinoLogger.error('Message arrived after connection closed');
                 }
             });
             connection.socket.on('error', function on_error(err: any) {
-                pinoLogger.error('Unexpected error on websocket', err);
+                pinoLogger.error({ message: 'Unexpected error on websocket', err });
                 if (connectionHandler) {
                     connectionHandler.close().catch((err) => {
-                        pinoLogger.error('Unexpected error while closing', err);
+                        pinoLogger.error({ message: 'Unexpected error while closing', err });
                     });
                     connectionHandler = null;
                 }
@@ -86,7 +86,7 @@ export function runHTTPServer({ port, host, handler, pinoLogger, onStarted, stat
                 pinoLogger.info(`Client disconnected`);
                 if (connectionHandler) {
                     connectionHandler.close().catch((err) => {
-                        pinoLogger.error('Unexpected error while closing', err);
+                        pinoLogger.error({ message: 'Unexpected error while closing', err });
                     });
                     connectionHandler = null;
                 } else {

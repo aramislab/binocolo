@@ -1,55 +1,68 @@
 import ConfStore from 'conf';
+import { Logger } from '@binocolo/backend/logging';
 import { Static, Type } from '@sinclair/typebox';
 import { stat } from 'node:fs/promises';
-import { DataSourceSpecification } from './data-sources.js';
-import Ajv from 'ajv';
+import {
+    LocalDataSourceSetDescriptor,
+    deserializeDataSourceSpecifications,
+    serializeDataSourceSpecifications,
+    DataSourceSetSpecification,
+    DataSourceAdapterSpecification,
+} from './data-sources.js';
+import { DataSourceSpecification, IConfigurationStorage } from '@binocolo/backend/service.js';
+import { validateJson } from '@binocolo/backend/json-validation.js';
+import { IDataSourceSpecificationsStorage } from '@binocolo/backend/types.js';
+import { CloudwatchS3ConfigStorage } from '@binocolo/aws/aws-s3-config-storage.js';
 
-const LocalConfigurationDataV1Schema = Type.Object({
+const CurrentSerializedLocalConfigurationDataSchema = Type.Object({
     v: Type.Literal(1),
-    conf: Type.Object({
+    state: Type.Object({
         currentDataSourceId: Type.String(),
-        dataSources: Type.Array(
-            Type.Object({
-                id: Type.String(),
-                name: Type.String(),
-                adapter: Type.Union([
-                    Type.Object({
-                        type: Type.Literal('AWSCloudWatch'),
-                        region: Type.String(),
-                        logGroupNames: Type.Array(Type.String()),
-                    }),
-                ]),
-                knownProperties: Type.Array(
-                    Type.Object({
-                        selector: Type.String(),
-                        name: Type.Optional(Type.String()),
-                        width: Type.Optional(Type.Number()),
-                        grow: Type.Optional(Type.Boolean()),
-                        timestamp: Type.Optional(Type.Boolean()),
-                        distinctColorsForValues: Type.Optional(Type.Boolean()),
-                        knownValues: Type.Optional(
-                            Type.Array(
-                                Type.Object({
-                                    value: Type.Union([Type.String(), Type.Number(), Type.Boolean(), Type.Null()]),
-                                    color: Type.Optional(
-                                        Type.Union([Type.Literal('error'), Type.Literal('warning'), Type.Literal('normal')])
-                                    ),
-                                })
-                            )
-                        ),
-                    })
-                ),
-            })
-        ),
     }),
+    dataSources: Type.Any(),
+    dataSourcesSets: Type.Array(
+        Type.Object({
+            id: Type.String(),
+            name: Type.String(),
+            spec: Type.Union([
+                Type.Object({
+                    type: Type.Literal('local'),
+                }),
+                Type.Object({
+                    type: Type.Literal('AWSS3'),
+                    region: Type.String(),
+                    bucket: Type.String(),
+                    prefix: Type.String(),
+                }),
+            ]),
+        })
+    ),
 });
-type LocalConfigurationDataV1 = Static<typeof LocalConfigurationDataV1Schema>;
+type CurrentSerializedLocalConfigurationData = Static<typeof CurrentSerializedLocalConfigurationDataSchema>;
 
-export class LocalConfiguration {
+const SerializedLocalConfigurationDataSchema = Type.Union([CurrentSerializedLocalConfigurationDataSchema]);
+type SerializedLocalConfigurationData = Static<typeof SerializedLocalConfigurationDataSchema>;
+
+type LocalConfigurationData = {
+    currentDataSourceId: string;
+    dataSources: DataSourceSpecification<DataSourceAdapterSpecification>[];
+    dataSourcesSets: LocalDataSourceSetDescriptor[];
+};
+
+type LocalConfigurationParams = {
+    logger: Logger;
+    verbose?: boolean;
+};
+
+export class LocalConfiguration
+    implements
+        IDataSourceSpecificationsStorage<DataSourceSpecification<DataSourceAdapterSpecification>>,
+        IConfigurationStorage<DataSourceSetSpecification, DataSourceAdapterSpecification>
+{
     private store: ConfStore;
     public path: string;
 
-    constructor() {
+    constructor(private params: LocalConfigurationParams) {
         this.store = new ConfStore({
             projectName: 'binocolo',
             projectVersion: '1.0.0', // Not used
@@ -69,75 +82,125 @@ export class LocalConfiguration {
         return true;
     }
 
-    initialize(dataSourceSpec: DataSourceSpecification): void {
-        const data: LocalConfigurationDataV1 = {
-            v: 1,
-            conf: {
-                currentDataSourceId: dataSourceSpec.id,
-                dataSources: [dataSourceSpec],
-            },
-        };
-        this.store.set('data', data);
+    initialize(dataSourceSpec: DataSourceSpecification<DataSourceAdapterSpecification>): void {
+        this.setData({
+            currentDataSourceId: dataSourceSpec.id,
+            dataSources: [dataSourceSpec],
+            dataSourcesSets: [],
+        });
     }
 
-    addDataSource(dataSourceSpec: DataSourceSpecification): void {
+    async getDataSourceSetDescriptors(): Promise<LocalDataSourceSetDescriptor[]> {
         let data = this.getData();
-        for (let other of data.conf.dataSources) {
+        let localSet: LocalDataSourceSetDescriptor = { id: 'local', name: 'Local', spec: { type: 'local' } };
+        return [localSet].concat(data.dataSourcesSets);
+    }
+
+    addDataSourceSet(setDescriptor: LocalDataSourceSetDescriptor): void {
+        let data = this.getData();
+        for (let other of data.dataSourcesSets) {
+            if (other.name === setDescriptor.name) {
+                throw new Error(`A data source set with name "${setDescriptor.name}" already exists`);
+            }
+        }
+        data.dataSourcesSets.push(setDescriptor);
+        this.setData(data);
+    }
+
+    async getDataSourceSetStorage(
+        setId: string
+    ): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<DataSourceAdapterSpecification>>> {
+        for (let descriptor of await this.getDataSourceSetDescriptors()) {
+            if (descriptor.id === setId) {
+                const specType = descriptor.spec.type;
+                switch (specType) {
+                    case 'local':
+                        return this;
+                    case 'AWSS3':
+                        return new CloudwatchS3ConfigStorage({
+                            region: descriptor.spec.region,
+                            bucket: descriptor.spec.bucket,
+                            prefix: descriptor.spec.prefix,
+                            deserializeDataSourceSpecifications,
+                            serializeDataSourceSpecifications,
+                            logger: this.params.logger,
+                            verbose: this.params.verbose,
+                        });
+                    default:
+                        const exhaustiveCheck: never = specType;
+                        throw new Error(`Unhandled descriptor.spec.type: ${exhaustiveCheck}`);
+                }
+            }
+        }
+        throw new Error(`Data source set with name ${name} not found`);
+    }
+
+    async addDataSource(dataSourceSpec: DataSourceSpecification<DataSourceAdapterSpecification>): Promise<void> {
+        let data = this.getData();
+        for (let other of data.dataSources) {
             if (other.id === dataSourceSpec.id) {
                 throw new Error(`This data source ID already exists: ${dataSourceSpec.id}`);
             }
         }
-        data.conf.dataSources.push(dataSourceSpec);
-        this.store.set('data', data);
+        data.dataSources.push(dataSourceSpec);
+        this.setData(data);
     }
 
-    private getData(): LocalConfigurationDataV1 {
-        const data: any = this.store.get('data');
-        return getLocalConfigurationDataV1(data, this.path);
+    private getData(): LocalConfigurationData {
+        const dataName = `config data at ${this.path}`;
+        let data = validateJson<SerializedLocalConfigurationData>(this.store.get('data'), SerializedLocalConfigurationDataSchema, dataName);
+        let { dataSources, obsolete } = deserializeDataSourceSpecifications(data.dataSources, dataName);
+        if (data.v !== 1) {
+            obsolete = true;
+        }
+        let result: LocalConfigurationData = {
+            currentDataSourceId: data.state.currentDataSourceId,
+            dataSources,
+            dataSourcesSets: data.dataSourcesSets,
+        };
+        if (obsolete) {
+            this.setData(result);
+        }
+        return result;
     }
 
-    getDataSources(): DataSourceSpecification[] {
-        return this.getData().conf.dataSources;
+    private setData(data: LocalConfigurationData) {
+        const dataOnDisk: CurrentSerializedLocalConfigurationData = {
+            v: 1,
+            state: {
+                currentDataSourceId: data.currentDataSourceId,
+            },
+            dataSources: serializeDataSourceSpecifications(data.dataSources),
+            dataSourcesSets: data.dataSourcesSets,
+        };
+        this.store.set('data', dataOnDisk);
     }
 
-    getCurrentDataSourceId(): string {
-        return this.getData().conf.currentDataSourceId;
+    async getDataSources(): Promise<DataSourceSpecification<DataSourceAdapterSpecification>[]> {
+        return this.getData().dataSources;
     }
 
-    setCurrentDataSourceId(dataSourceId: string): void {
+    async getCurrentDataSourceId(): Promise<string> {
+        return this.getData().currentDataSourceId;
+    }
+
+    async setCurrentDataSourceId(dataSourceId: string): Promise<void> {
         let data = this.getData();
-        for (let dataSource of data.conf.dataSources) {
-            if (dataSource.id === dataSourceId) {
-                if (data.conf.currentDataSourceId !== dataSourceId) {
-                    data.conf.currentDataSourceId = dataSourceId;
-                    this.store.set('data', data);
+        const [setId, dsId] = dataSourceId.split(':');
+        for (let d of await this.getDataSourceSetDescriptors()) {
+            if (d.id === setId) {
+                const ds = await this.getDataSourceSetStorage(d.id);
+                for (let dataSource of await ds.getDataSources()) {
+                    if (dataSource.id === dsId) {
+                        if (data.currentDataSourceId !== dsId) {
+                            data.currentDataSourceId = dataSourceId;
+                            this.setData(data);
+                        }
+                        return;
+                    }
                 }
-                return;
             }
         }
         throw new Error(`Invalid data source ID: ${dataSourceId}`);
-    }
-}
-
-export type EmptyValue = null | undefined | false;
-
-function notEmpty<TValue>(value: TValue | EmptyValue): value is TValue {
-    return value !== null && value !== undefined && value !== false;
-}
-
-function getLocalConfigurationDataV1(data: any, path: string): LocalConfigurationDataV1 {
-    if (!data || !data.v) {
-        throw new Error(`Invalid config data at ${path}`);
-    }
-    if (data.v === 1) {
-        const ajv = new Ajv();
-        const valid = ajv.validate(LocalConfigurationDataV1Schema, data);
-        if (!valid) {
-            const errors: string[] = ajv.errors ? ajv.errors.map((err) => err.message).filter(notEmpty) : [];
-            throw new Error([`Invalid config data version ${data.v} at ${path}:`, ...errors].join('\n'));
-        }
-        return data;
-    } else {
-        throw new Error(`Unknown config data version ${data.v} at ${path}`);
     }
 }
