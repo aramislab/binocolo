@@ -93,17 +93,23 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
 
     async start(): Promise<void> {
         const dataSourceSets = await this.configurationStorage.getDataSourceSetDescriptors();
-        const dataSourcesConfig: LogTableConfigurationParams['dataSources'] = [];
+        const dataSourcesConfig: LogTableConfigurationParams['dataSourceSets'] = [];
         for (let dataSourceSetSpec of dataSourceSets) {
             let dataSourceSet = await this.configurationStorage.getDataSourceSetStorage(dataSourceSetSpec.id);
-            const dataSources: DataSourceSpecification<S>[] = await dataSourceSet.getDataSources();
+            const dataSources = await dataSourceSet.getDataSources();
+            const dataSourceSetDescriptor: LogTableConfigurationParams['dataSourceSets'][number] = {
+                id: dataSourceSetSpec.id,
+                name: dataSourceSetSpec.name,
+                dataSources: [],
+            };
+            dataSourcesConfig.push(dataSourceSetDescriptor);
             for (let dataSourceSpec of dataSources) {
                 const adapter = this.getDataSourceAdapterFromSpec(dataSourceSpec.adapter, this.logger, this.verbose);
                 const id = `${dataSourceSetSpec.id}:${dataSourceSpec.id}`;
                 this.dataSourceAdaptersMap.set(id, adapter);
-                dataSourcesConfig.push({
+                dataSourceSetDescriptor.dataSources.push({
                     id,
-                    name: `${dataSourceSetSpec.name}/${dataSourceSpec.name}`,
+                    name: dataSourceSpec.name,
                     ...adapter.specs,
                     knownProperties: dataSourceSpec.knownProperties,
                     initialQuery: adapter.defaultQuery,
@@ -113,7 +119,7 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
         const config: LogTableConfigurationParams = {
             ...DEFAULT_CONFIGURATION,
             initialDataSourceId: await this.configurationStorage.getCurrentDataSourceId(),
-            dataSources: dataSourcesConfig,
+            dataSourceSets: dataSourcesConfig,
         };
         await this.send({ type: 'configuration', params: config });
     }

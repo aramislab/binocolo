@@ -117,7 +117,7 @@ export class LogTableConfiguration {
     private dataSourceTimeRange: TimeRange;
     public elaboratedTimeRange: ElaboratedTimeRange;
     public histogram: HistogramDataSeries[] | null;
-    public dataSources: DataSourceConfig[];
+    public dataSourceSets: LogTableConfigurationParams['dataSourceSets'];
 
     public colorTheme: ColorTheme;
 
@@ -128,11 +128,13 @@ export class LogTableConfiguration {
         this.colorTheme = DEFAULT_COLOR_THEME;
         this.timeRanges = params.timeRanges;
         this.preambleProperties = params.preambleProperties;
-        this.dataSources = params.dataSources;
+        this.dataSourceSets = params.dataSourceSets;
 
         this.dataSourcesMap = new Map();
-        for (let dataSource of params.dataSources) {
-            this.dataSourcesMap.set(dataSource.id, dataSource);
+        for (let set of this.dataSourceSets) {
+            for (let dataSource of set.dataSources) {
+                this.dataSourcesMap.set(dataSource.id, dataSource);
+            }
         }
         this.currentDataSourceId = params.initialDataSourceId;
 

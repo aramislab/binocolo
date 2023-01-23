@@ -5,21 +5,28 @@ import { TextBlock } from './TextBlock.js';
 export const DataSourcePicker = ({ config, close }: { config: LogTableConfiguration; close: () => void }) => {
     return (
         <DataSourcePickerContainerDiv config={config}>
-            {config.dataSources.map((dataSource) => (
-                <div key={dataSource.id}>
-                    <TextBlock
-                        config={config}
-                        className="button"
-                        theme={config.colorTheme.light}
-                        onClick={() => {
-                            close();
-                            config.changeDataSource(dataSource.id);
-                        }}
-                    >
-                        {dataSource.name}
-                    </TextBlock>
-                </div>
-            ))}
+            {config.dataSourceSets.map(
+                (dataSourceSet) =>
+                    dataSourceSet.dataSources.length > 0 && (
+                        <div key={dataSourceSet.id}>
+                            {dataSourceSet.name}
+                            {dataSourceSet.dataSources.map((dataSource) => (
+                                <TextBlock
+                                    key={dataSource.id}
+                                    config={config}
+                                    className="button"
+                                    theme={config.colorTheme.light}
+                                    onClick={() => {
+                                        close();
+                                        config.changeDataSource(dataSource.id);
+                                    }}
+                                >
+                                    {dataSource.name}
+                                </TextBlock>
+                            ))}
+                        </div>
+                    )
+            )}
         </DataSourcePickerContainerDiv>
     );
 };

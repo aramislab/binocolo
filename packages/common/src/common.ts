@@ -158,7 +158,11 @@ export function parseFieldSelectorText(text: string): JSONFieldSelector {
 // ---- Configuration ------------------------------------
 
 export type LogTableConfigurationParams = {
-    dataSources: DataSourceConfig[];
+    dataSourceSets: {
+        id: string;
+        name: string;
+        dataSources: DataSourceConfig[];
+    }[];
     initialDataSourceId: string;
     preambleProperties: string[];
     timezones: {
