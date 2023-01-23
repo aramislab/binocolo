@@ -338,12 +338,12 @@ export class LogTableConfiguration {
             case 'sendEntries':
                 this.entriesStorage.addEntriesBlock(message.entries);
                 this.numInputEntries += message.entries.length;
+                this.dataBundleStats = message.stats || null;
                 this.recomputeEntriesSelection();
                 break;
             case 'doneLoadingEntries':
                 this.loading = false;
                 this.serverError = message.errorMessage || null;
-                this.dataBundleStats = message.stats || null;
                 break;
             case 'configuration':
                 throw new Error(`Configuration message is not supposed to be seen here`);
@@ -382,11 +382,20 @@ export class LogTableConfiguration {
         this.loading = true;
         this.dataBundleStats = null;
         this.sendMessage({
-            type: 'fetchEntries',
-            timeRange: this.dataSourceTimeRange,
-            filters: this.dataSourceFilters,
-            histogramBreakdownProperty: this.histogramBreakdownProperty,
+            type: 'queryDataSource',
             dataSourceId: this.currentDataSourceId,
+            timeRange: this.dataSourceTimeRange,
+            queries: [
+                {
+                    type: 'fetchEntries',
+                    filters: this.dataSourceFilters,
+                },
+                {
+                    type: 'buildHistogram',
+                    filters: this.dataSourceFilters,
+                    histogramBreakdownProperty: this.histogramBreakdownProperty,
+                },
+            ],
         });
     }
 

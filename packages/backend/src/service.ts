@@ -4,7 +4,7 @@ import { PropertyConfiguration } from '@binocolo/common/common.js';
 import { QueryDescriptor, IDataSourceAdapter } from './types.js';
 import { IDataSourceSpecificationsStorage } from './types.js';
 import { IConnectionHandler, INetworkHandler, runHTTPServer, SenderFunction } from './network.js';
-import { BackendCommand, FetchEntriesCommand, LogTableConfigurationParams, RecordsScanningStats } from '@binocolo/common/common.js';
+import { BackendCommand, QueryDataSourceCommand, LogTableConfigurationParams, RecordsScanningStats } from '@binocolo/common/common.js';
 
 type ServiceSpecs = {
     DataSourceAdapter: any;
@@ -126,7 +126,7 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
 
     async onMessage(command: BackendCommand): Promise<void> {
         switch (command.type) {
-            case 'fetchEntries':
+            case 'queryDataSource':
                 await this.configurationStorage.setCurrentDataSourceId(command.dataSourceId);
                 return await this.fetchEntries(command);
             case 'stopQuery':
@@ -146,31 +146,33 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
         return adapter;
     }
 
-    private async fetchEntries({ timeRange, filters, histogramBreakdownProperty, dataSourceId }: FetchEntriesCommand): Promise<void> {
+    private async fetchEntries({ timeRange, dataSourceId, queries }: QueryDataSourceCommand): Promise<void> {
         let errorMessage: string | undefined = undefined;
-        let stats: RecordsScanningStats | null | undefined = undefined;
+        // let stats: RecordsScanningStats | null | undefined = undefined;
         try {
             const dataSource = this.getDataSourceById(dataSourceId);
-            stats = await dataSource.queryLogs({
+            await dataSource.queryDataSource({
                 timeRange,
-                filters,
-                histogramBreakdownProperty,
+                queries,
+                sendMessage: this.send,
+                // filters,
+                // histogramBreakdownProperty,
                 onStarted: (query) => {
                     this.query = query;
                 },
-                onData: async (entries) => {
-                    await this.send({ type: 'sendEntries', entries });
-                },
-                onHistogram: async ({ elaboratedTimeRange, histogram }) => {
-                    await this.send({ type: 'sendHistogram', elaboratedTimeRange, histogram });
-                },
+                // onData: async (entries, stats) => {
+                //     await this.send({ type: 'sendEntries', entries, stats: stats || undefined });
+                // },
+                // onHistogram: async ({ elaboratedTimeRange, histogram }) => {
+                //     await this.send({ type: 'sendHistogram', elaboratedTimeRange, histogram });
+                // },
             });
             this.query = null;
         } catch (err) {
             this.logger.error('Unexpected error while fetching logs', err);
             errorMessage = (err as any).message;
         }
-        await this.send({ type: 'doneLoadingEntries', errorMessage, stats: stats || undefined });
+        await this.send({ type: 'doneLoadingEntries', errorMessage });
     }
 
     async close(): Promise<void> {

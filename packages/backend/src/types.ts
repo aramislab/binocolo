@@ -9,6 +9,8 @@ import {
     DataSourceConfig,
 } from '@binocolo/common/common.js';
 import { ElaboratedTimeRange } from '@binocolo/common/time.js';
+import { SenderFunction } from './network.js';
+import { DataSourceQuery } from '@binocolo/common/common.js';
 
 // Documentation:
 // - https://www.npmjs.com/package/@sinclair/typebox
@@ -26,16 +28,18 @@ export type QueryDescriptor = {
 
 type QueryLogsParams = {
     timeRange: TimeRange;
-    filters: DataSourceFilter[];
-    histogramBreakdownProperty: JSONFieldSelector | null;
+    sendMessage: SenderFunction;
+    queries: DataSourceQuery[];
+    // filters: DataSourceFilter[];
+    // histogramBreakdownProperty: JSONFieldSelector | null;
     onStarted: (query: QueryDescriptor) => void;
-    onData: (events: InputLogEntry[]) => Promise<void>;
-    onHistogram: (params: { elaboratedTimeRange: ElaboratedTimeRange; histogram: HistogramDataSeries[] }) => Promise<void>;
+    // onData: (events: InputLogEntry[]) => Promise<void>;
+    // onHistogram: (params: { elaboratedTimeRange: ElaboratedTimeRange; histogram: HistogramDataSeries[] }) => Promise<void>;
 };
 
 export interface IDataSourceAdapter {
     specs: DataSourceSpecs;
-    queryLogs: (params: QueryLogsParams) => Promise<RecordsScanningStats | null>;
+    queryDataSource: (params: QueryLogsParams) => Promise<void>;
     defaultQuery: DataSourceConfig['initialQuery'];
 }
 

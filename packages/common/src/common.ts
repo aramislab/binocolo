@@ -15,19 +15,31 @@ export type HistogramDataSeries = {
 
 // ---- Command for Backend ------------------------------------
 
-export type FetchEntriesCommand = {
+export type FetchEntriesQuery = {
     type: 'fetchEntries';
-    dataSourceId: string;
-    timeRange: TimeRange;
+    filters: DataSourceFilter[];
+};
+
+export type BuildHistogramQuery = {
+    type: 'buildHistogram';
     filters: DataSourceFilter[];
     histogramBreakdownProperty: JSONFieldSelector | null;
+};
+
+export type DataSourceQuery = FetchEntriesQuery | BuildHistogramQuery;
+
+export type QueryDataSourceCommand = {
+    type: 'queryDataSource';
+    dataSourceId: string;
+    timeRange: TimeRange;
+    queries: DataSourceQuery[];
 };
 
 export type StopQueryCommand = {
     type: 'stopQuery';
 };
 
-export type BackendCommand = FetchEntriesCommand | StopQueryCommand;
+export type BackendCommand = QueryDataSourceCommand | StopQueryCommand;
 
 export function parseBackendCommand(data: any): BackendCommand {
     // TODO: implement Schema checking
@@ -39,6 +51,7 @@ export function parseBackendCommand(data: any): BackendCommand {
 export type SendEntriesCommand = {
     type: 'sendEntries';
     entries: InputLogEntry[];
+    stats?: RecordsScanningStats;
 };
 
 export type SendHistogramCommand = {
@@ -55,7 +68,6 @@ export type RecordsScanningStats = {
 
 export type DoneLoadingEntriesCommand = {
     type: 'doneLoadingEntries';
-    stats?: RecordsScanningStats;
     errorMessage?: string;
 };
 

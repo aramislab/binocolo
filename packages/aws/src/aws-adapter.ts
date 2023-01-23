@@ -6,18 +6,19 @@ import {
     QueryStatistics,
 } from '@aws-sdk/client-cloudwatch-logs';
 import { Logger } from '@binocolo/backend/logging';
-import { InputLogEntry, IDataSourceAdapter, QueryDescriptor } from '@binocolo/backend/types';
+import { InputLogEntry, IDataSourceAdapter, QueryDescriptor } from '@binocolo/backend/types.js';
 import {
     DataSourceSpecs,
     DataSourceFilter,
     HistogramDataSeries,
-    JSONFieldSelector,
     makeStringFromJSONFieldSelector,
-    RecordsScanningStats,
     DataSourceConfig,
 } from '@binocolo/common/common.js';
 import { ElaboratedTimeRange, elaborateTimeRange } from '@binocolo/common/time.js';
 import { HOUR, MIN, SEC, TimeRange } from '@binocolo/common/types.js';
+import { SenderFunction } from '@binocolo/backend/network.js';
+import { DataSourceQuery } from '@binocolo/common/common.js';
+import { BuildHistogramQuery, FetchEntriesQuery } from '@binocolo/common/common.js';
 
 const QUERY_RESULTS_LIMIT = 5000;
 const DELAY_BETWEEN_API_CALLS_IN_MS = 500;
@@ -36,6 +37,13 @@ type CloudwatchLogsAdapterParams = {
 };
 
 // Documentation: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html
+
+type QueryDataSourceParams = {
+    timeRange: TimeRange;
+    sendMessage: SenderFunction;
+    queries: DataSourceQuery[];
+    onStarted: (query: QueryDescriptor) => void;
+};
 
 export class CloudwatchLogsAdapter implements IDataSourceAdapter {
     private client: CloudWatchLogsClient;
@@ -77,153 +85,176 @@ export class CloudwatchLogsAdapter implements IDataSourceAdapter {
         this.logGroupNames = logGroupNames;
     }
 
-    async queryLogs({
-        timeRange,
-        filters,
-        onStarted,
-        onData,
-        onHistogram,
-        histogramBreakdownProperty,
-    }: {
-        timeRange: TimeRange;
-        filters: DataSourceFilter[];
-        histogramBreakdownProperty: JSONFieldSelector | null;
-        onStarted: (query: QueryDescriptor) => void;
-        onData: (events: InputLogEntry[]) => Promise<void>;
-        onHistogram: (params: { elaboratedTimeRange: ElaboratedTimeRange; histogram: HistogramDataSeries[] }) => Promise<void>;
-    }): Promise<RecordsScanningStats | null> {
+    async queryDataSource(params: QueryDataSourceParams): Promise<void> {
+        const querySet = new AWSCloudWatchQuerySet(params, this.logGroupNames, this.client, this.logger, this.verbose);
+        await querySet.run();
+    }
+}
+
+class AWSCloudWatchQuerySet {
+    private queryDescriptors: QueryDescriptor[];
+    private elaboratedTimeRange: ElaboratedTimeRange;
+    constructor(
+        private params: QueryDataSourceParams,
+        private readonly logGroupNames: string[],
+        private client: CloudWatchLogsClient,
+        private logger: Logger,
+        private readonly verbose: boolean
+    ) {
+        this.queryDescriptors = [];
+        const { timeRange } = params;
+        this.elaboratedTimeRange = elaborateTimeRange(timeRange, 1000);
+        if (this.elaboratedTimeRange.bucketSpec.durationInMs < 1000) {
+            throw new Error(`Bucket size too small (${this.elaboratedTimeRange.bucketSpec.durationInMs} ms). Should be at least 1 second.`);
+        }
+    }
+    async run(): Promise<void> {
+        const { timeRange, onStarted, queries, sendMessage } = this.params;
         const elaboratedTimeRange = elaborateTimeRange(timeRange, 1000);
         if (elaboratedTimeRange.bucketSpec.durationInMs < 1000) {
             throw new Error(`Bucket size too small (${elaboratedTimeRange.bucketSpec.durationInMs} ms). Should be at least 1 second.`);
         }
-        let state: { stats: RecordsScanningStats | null } = {
-            stats: null,
-        };
-        let totFromHistogram: number = 0;
-        let totNumRecords: number = 0;
 
-        let histogramQueryDescriptor: QueryDescriptor | null = null;
-        let linesQueryDescriptor: QueryDescriptor | null = null;
         let stopped: boolean = false;
-
         onStarted({
             stop: () => {
-                stopped = true;
-                histogramQueryDescriptor && histogramQueryDescriptor.stop();
-                linesQueryDescriptor && linesQueryDescriptor.stop();
+                if (!stopped) {
+                    stopped = true;
+                    for (let qd of this.queryDescriptors) {
+                        qd.stop();
+                    }
+                }
             },
         });
 
+        await Promise.all(
+            queries.map((query) => {
+                const queryType = query.type;
+                switch (queryType) {
+                    case 'fetchEntries':
+                        return this._fetchEntries(query);
+                    case 'buildHistogram':
+                        return this._buildHistogram(query);
+                    default:
+                        const exhaustiveCheck: never = queryType;
+                        throw new Error(`Unhandled queryType: ${exhaustiveCheck}`);
+                }
+            })
+        );
+    }
+
+    private async _fetchEntries({ filters }: FetchEntriesQuery): Promise<void> {
+        let state: { entries: InputLogEntry[] } = {
+            entries: [],
+        };
+        // let totFromHistogram: number = 0;
+        let totNumRecords: number = 0;
+
+        let nextEventId: number = 1;
+        let reportedEntries: Set<string> = new Set();
+        const fields: string[] = [
+            'toMillis(@timestamp) as @timestamp',
+            'toMillis(@ingestionTime) as @ingestionTime',
+            '@message',
+            '@log',
+            '@logStream',
+            '@duration',
+        ];
+        const { stats } = await this._runCloudWatchLogsQuery({
+            label: 'lines',
+            onlyLastBatch: true,
+            timeRange: this.elaboratedTimeRange.timeRange,
+            logGroupNames: this.logGroupNames,
+            query: new CloudWatchQueryBuilder()
+                .fields(fields.join(', '))
+                .filters(filters)
+                .sort('@timestamp desc')
+                .limit(QUERY_RESULTS_LIMIT)
+                .generateQuery(),
+            onStarted: (descriptor) => {
+                this.queryDescriptors.push(descriptor);
+            },
+            onData: async ({ rows }) => {
+                let entries: InputLogEntry[] = [];
+                for (let row of rows) {
+                    const { ptr, ts, payload } = parseResultRow(row);
+                    if (ts < this.elaboratedTimeRange.timeRange.start || ts > this.elaboratedTimeRange.timeRange.end) {
+                        throw new Error(
+                            `Log event outside of time range: ${new Date(ts)}, ${new Date(
+                                this.elaboratedTimeRange.timeRange.start
+                            )}-${new Date(this.elaboratedTimeRange.timeRange.end)}. @ptr = ${ptr}`
+                        );
+                    }
+                    if (!reportedEntries.has(ptr)) {
+                        totNumRecords += 1;
+                        reportedEntries.add(ptr);
+                        entries.push({
+                            id: `${nextEventId++}`,
+                            ts,
+                            payload,
+                        });
+                    }
+                }
+                if (entries.length > 0) {
+                    state.entries = entries;
+                }
+            },
+        });
+
+        // Sanity checks
+        if (stats) {
+            // const complete: boolean = stats.numResults === stats.recordsMatched || false;
+            // if (complete && totNumRecords !== totFromHistogram) {
+            //     throw new Error(`totNumRecords: ${totNumRecords}, totFromHistogram: ${totFromHistogram}`);
+            // }
+            if (totNumRecords !== stats.numResults) {
+                throw new Error(`totNumRecords mismatch: ${totNumRecords}, stats: ${stats.numResults}`);
+            }
+        }
+        await this.params.sendMessage({ type: 'sendEntries', entries: state.entries, stats });
+    }
+
+    private async _buildHistogram({ filters, histogramBreakdownProperty }: BuildHistogramQuery): Promise<void> {
         let histogramFields: string[] = [
-            `count(*) as numRecords by toMillis(bin(${makePeriodString(elaboratedTimeRange.bucketSpec.durationInMs)})) as bucket`,
+            `count(*) as numRecords by toMillis(bin(${makePeriodString(this.elaboratedTimeRange.bucketSpec.durationInMs)})) as bucket`,
         ];
         if (histogramBreakdownProperty) {
             histogramFields.push(`${makeStringFromJSONFieldSelector(histogramBreakdownProperty)} as property`);
         }
-
-        await Promise.all([
-            (async () => {
-                await this._runCloudWatchLogsQuery({
-                    label: 'histogram',
-                    onlyLastBatch: false,
-                    timeRange: elaboratedTimeRange.timeRange,
-                    logGroupNames: this.logGroupNames,
-                    query: new CloudWatchQueryBuilder().stats(histogramFields.join(', ')).filters(filters).limit(10000).generateQuery(),
-                    onStarted: (descriptor) => {
-                        histogramQueryDescriptor = descriptor;
-                    },
-                    onData: async ({ rows }) => {
-                        let histogramMaps = new HistogramMaps();
-                        totFromHistogram = 0;
-                        for (let row of rows) {
-                            const { bucket, numRecords, property } = parseHistogramStatsRow(row);
-                            totFromHistogram += numRecords;
-                            if (elaboratedTimeRange.timestamps.includes(bucket)) {
-                                histogramMaps.addNumRecords(property, bucket, numRecords);
-                            } else {
-                                throw new Error(
-                                    `Bucket outside of timerange: ${new Date(bucket)}, time range: ${new Date(
-                                        elaboratedTimeRange.timeRange.start
-                                    )}-${new Date(elaboratedTimeRange.timeRange.end)}, bucket size: ${
-                                        elaboratedTimeRange.bucketSpec.durationInMs
-                                    }ms`
-                                );
-                            }
-                        }
-                        await onHistogram({
-                            elaboratedTimeRange,
-                            histogram: histogramMaps.getDataSeries(elaboratedTimeRange.timestamps),
-                        });
-                    },
-                });
-            })(),
-            (async () => {
-                let nextEventId: number = 1;
-                let reportedEntries: Set<string> = new Set();
-                const fields: string[] = [
-                    'toMillis(@timestamp) as @timestamp',
-                    'toMillis(@ingestionTime) as @ingestionTime',
-                    '@message',
-                    '@log',
-                    '@logStream',
-                    '@duration',
-                ];
-                const { stats } = await this._runCloudWatchLogsQuery({
-                    label: 'lines',
-                    onlyLastBatch: true,
-                    timeRange: elaboratedTimeRange.timeRange,
-                    logGroupNames: this.logGroupNames,
-                    query: new CloudWatchQueryBuilder()
-                        .fields(fields.join(', '))
-                        .filters(filters)
-                        .sort('@timestamp desc')
-                        .limit(QUERY_RESULTS_LIMIT)
-                        .generateQuery(),
-                    onStarted: (descriptor) => {
-                        linesQueryDescriptor = descriptor;
-                    },
-                    onData: async ({ rows }) => {
-                        let entries: InputLogEntry[] = [];
-                        for (let row of rows) {
-                            const { ptr, ts, payload } = parseResultRow(row);
-                            if (ts < elaboratedTimeRange.timeRange.start || ts > elaboratedTimeRange.timeRange.end) {
-                                throw new Error(
-                                    `Log event outside of time range: ${new Date(ts)}, ${new Date(
-                                        elaboratedTimeRange.timeRange.start
-                                    )}-${new Date(elaboratedTimeRange.timeRange.end)}. @ptr = ${ptr}`
-                                );
-                            }
-                            if (!reportedEntries.has(ptr)) {
-                                totNumRecords += 1;
-                                reportedEntries.add(ptr);
-                                entries.push({
-                                    id: `${nextEventId++}`,
-                                    ts,
-                                    payload,
-                                });
-                            }
-                        }
-                        if (entries.length > 0) {
-                            await onData(entries);
-                        }
-                    },
-                });
-                if (stats) {
-                    state.stats = stats;
+        await this._runCloudWatchLogsQuery({
+            label: 'histogram',
+            onlyLastBatch: false,
+            timeRange: this.elaboratedTimeRange.timeRange,
+            logGroupNames: this.logGroupNames,
+            query: new CloudWatchQueryBuilder().stats(histogramFields.join(', ')).filters(filters).limit(10000).generateQuery(),
+            onStarted: (descriptor) => {
+                this.queryDescriptors.push(descriptor);
+            },
+            onData: async ({ rows }) => {
+                let histogramMaps = new HistogramMaps();
+                // totFromHistogram = 0;
+                for (let row of rows) {
+                    const { bucket, numRecords, property } = parseHistogramStatsRow(row);
+                    // totFromHistogram += numRecords;
+                    if (this.elaboratedTimeRange.timestamps.includes(bucket)) {
+                        histogramMaps.addNumRecords(property, bucket, numRecords);
+                    } else {
+                        throw new Error(
+                            `Bucket outside of timerange: ${new Date(bucket)}, time range: ${new Date(
+                                this.elaboratedTimeRange.timeRange.start
+                            )}-${new Date(this.elaboratedTimeRange.timeRange.end)}, bucket size: ${
+                                this.elaboratedTimeRange.bucketSpec.durationInMs
+                            }ms`
+                        );
+                    }
                 }
-            })(),
-        ]);
-        if (!state.stats) {
-            return null;
-        }
-        const complete: boolean = state.stats.numResults === state.stats.recordsMatched || false;
-        if (complete && totNumRecords !== totFromHistogram) {
-            throw new Error(`totNumRecords: ${totNumRecords}, totFromHistogram: ${totFromHistogram}`);
-        }
-        if (totNumRecords !== state.stats.numResults) {
-            throw new Error(`totNumRecords mismatch: ${totNumRecords}, stats: ${state.stats.numResults}`);
-        }
-        return state.stats;
+                await this.params.sendMessage({
+                    type: 'sendHistogram',
+                    elaboratedTimeRange: this.elaboratedTimeRange,
+                    histogram: histogramMaps.getDataSeries(this.elaboratedTimeRange.timestamps),
+                });
+            },
+        });
     }
 
     private async _runCloudWatchLogsQuery({
