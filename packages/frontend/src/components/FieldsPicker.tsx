@@ -3,12 +3,13 @@ import { LINE_HEIGHT, MONOSPACE_FONT, PropertyNode, REFERENCE_TEXT_SIZE } from '
 import styled from 'styled-components';
 import { TextBlock } from './TextBlock.js';
 import React from 'react';
-import { PropertyHeaderTitle, PropertyHeaderView } from './LogEntriesTable.js';
 import { JSONFieldSelector, makeStringFromJSONFieldSelector, parseFieldSelectorText } from '@binocolo/common/common.js';
 import { observer } from 'mobx-react-lite';
 import { searchPropertyNode } from '../logic/inspect_payload.js';
 import { faSquare, faSquareCheck } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { PropertyHeaderTitle } from './PropertyHeaderTitle.js';
+import { PropertyHeaderView } from './PropertyHeaderView.js';
 
 export const FieldsPicker = ({ config, close }: { config: LogTableConfiguration; close: () => void }) => {
     const inputRef = React.useRef<HTMLInputElement | null>(null);
