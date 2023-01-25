@@ -59,7 +59,7 @@ async function runCli(): Promise<void> {
             }
             const service = new Service<ServiceSpecs>({
                 logger,
-                host: command.host,
+                host: command.host || '127.0.0.1',
                 port: command.port,
                 configurationStorage: localConfig,
                 verbose: command.verbose,

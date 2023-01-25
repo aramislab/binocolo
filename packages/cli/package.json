@@ -1,4 +1,5 @@
 {
+  "name": "@binocolo/cli",
   "main": "dist/main.js",
   "type": "module",
   "exports": {
@@ -15,7 +16,7 @@
     "clean:dist": "rimraf dist",
     "compile": "tsc",
     "check-compilation": "tsc --noEmit",
-    "server": "node dist/main.js",
+    "cli": "node dist/main.js",
     "server-dev": "node dist/main.js -v -o 127.0.0.1 -p 63546 -n",
     "test": "npm run compile && mocha -r ts-node/register 'dist/tests/**/*.js'"
   },
