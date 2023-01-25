@@ -158,7 +158,7 @@ async function runCli(): Promise<void> {
                 verbose: command.verbose,
                 getDataSourceAdapterFromSpec,
                 pinoLogger,
-                staticRootDir: resolve(join(__dirname, '..', '..', 'frontend', 'build')),
+                staticRootDir: resolve(join(__dirname, 'frontend-build')),
             });
             service.runHTTPServer((url) => {
                 if (!command.nobrowser) {

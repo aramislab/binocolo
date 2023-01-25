@@ -2,3 +2,5 @@ node_modules
 coverage
 dist
 *.tsbuildinfo
+jest.config.js*
+frontend-build

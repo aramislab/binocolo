@@ -15,6 +15,7 @@
       <excludeFolder url="file://$MODULE_DIR$/packages/cli/dist" />
       <excludeFolder url="file://$MODULE_DIR$/packages/common/dist" />
       <excludeFolder url="file://$MODULE_DIR$/packages/frontend/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/packages/cli/frontend-build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

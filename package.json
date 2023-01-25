@@ -8,6 +8,7 @@
     "clean:dist": "npm run clean:dist --workspaces",
     "build": "tsc --build --verbose",
     "watch": "tsc --build --watch --verbose",
+    "copy-frontend-bundle": "copyfiles --up 3 packages/cli-frontend/build/**/*.* packages/cli/frontend-build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -29,6 +30,7 @@
     "packages/cli-frontend"
   ],
   "devDependencies": {
+    "copyfiles": "^2.4.1",
     "prettier": "^2.8.2",
     "rimraf": "^3.0.2"
   }
