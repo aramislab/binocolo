@@ -452,18 +452,22 @@ class CloudWatchQueryBuilder {
     }
 
     filters(filters: DataSourceFilter[]): CloudWatchQueryBuilder {
+        console.log(filters);
         for (let filter of filters) {
-            switch (filter.type) {
+            const filterType = filter.type;
+            switch (filterType) {
                 case 'match':
                     (() => {
                         const selectors = filter.selector.split('+');
                         if (selectors.length > 0 && filter.values.length > 0) {
-                            const equalityOp = filter.include ? '=' : '!=';
+                            const equalityOp = filter.exact ? (filter.include ? '=' : '!=') : filter.include ? 'like' : 'not like';
                             const booleanOp = filter.include ? ' or ' : ' and ';
                             let conditions: string[] = [];
                             for (let selector of selectors) {
                                 for (let value of filter.values) {
-                                    conditions.push(`${selector} ${equalityOp} ${JSON.stringify(value)}`);
+                                    const valueLiteral =
+                                        filter.exact || typeof value !== 'string' ? JSON.stringify(value) : `/(?i)${escapeRegExp(value)}/`;
+                                    conditions.push(`${selector} ${equalityOp} ${valueLiteral}`);
                                 }
                             }
                             const conditionText = conditions.join(booleanOp);
@@ -488,7 +492,7 @@ class CloudWatchQueryBuilder {
                     break;
 
                 default:
-                    const exhaustiveCheck: never = filter;
+                    const exhaustiveCheck: never = filterType;
                     throw new Error(`Unhandled filter.type: ${exhaustiveCheck}`);
             }
         }
@@ -505,6 +509,11 @@ class CloudWatchQueryBuilder {
     generateQuery(): string {
         return this.lines.join('\n');
     }
+}
+
+// From: https://stackoverflow.com/a/9310752/225097
+function escapeRegExp(value: string): string {
+    return value.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }
 
 function makePeriodString(durationMs: number): string {

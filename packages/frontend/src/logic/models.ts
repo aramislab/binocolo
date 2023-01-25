@@ -41,7 +41,7 @@ import {
 } from './types.js';
 import { formatDateInTimeZone } from './time.js';
 import { ColorTheme, DEFAULT_COLOR_THEME } from './themes.js';
-import { filterMatches, makeFilterId } from './filters.js';
+import { makeFilterId } from './filters.js';
 import { calculatePropertyNodeSize, inspectPayload, makeEmptyPropertyNode, visitPayload } from './inspect_payload.js';
 import { FrequencyStats, mergeFrequencyStats, PropertyValueStatsCalculator } from './value_frequencies.js';
 import { getTimeRangeFromSpecification } from '@binocolo/common/time.js';
@@ -89,7 +89,6 @@ export class LogTableConfiguration {
     public propertiesData: PropertyData[];
 
     private supportedDataSourceFilters: PartialDataSourceFilter[];
-    public visualizationFilters: DataSourceFilter[];
     public dataSourceFilters: DataSourceFilter[];
 
     private entriesStorage: LogEntriesStorage;
@@ -178,10 +177,9 @@ export class LogTableConfiguration {
         this.computePropertiesData();
         this.computeColumns();
 
-        this.visualizationFilters = [];
         this.dataSourceFilters = this.getCurrentDataSource().initialQuery.filters;
         this.entriesStorage = new LogEntriesStorage();
-        this.entriesSelection = new LogEntriesSelection(this.entryMatchesFilters.bind(this), null, this.getKnownPropertiesMap());
+        this.entriesSelection = new LogEntriesSelection(null, this.getKnownPropertiesMap());
         this.numInputEntries = 0;
 
         this.sendMessage = sendMessage;
@@ -202,7 +200,6 @@ export class LogTableConfiguration {
             elaboratedTimeRange: observable.deep,
             histogram: observable.deep,
             colorTheme: observable,
-            visualizationFilters: observable,
             dataSourceFilters: observable,
             entriesSelection: observable,
             histogramBreakdownProperty: observable,
@@ -241,10 +238,9 @@ export class LogTableConfiguration {
         this.computePropertiesData();
         this.computeColumns();
 
-        this.visualizationFilters = [];
         this.dataSourceFilters = this.getCurrentDataSource().initialQuery.filters;
         this.entriesStorage = new LogEntriesStorage();
-        this.entriesSelection = new LogEntriesSelection(this.entryMatchesFilters.bind(this), null, this.getKnownPropertiesMap());
+        this.entriesSelection = new LogEntriesSelection(null, this.getKnownPropertiesMap());
         this.numInputEntries = 0;
 
         this.loadEntriesFromDataSource();
@@ -277,7 +273,7 @@ export class LogTableConfiguration {
 
     private recomputeEntriesSelection(): void {
         this.entriesSelection = new LogEntriesSelection(
-            this.entryMatchesFilters.bind(this),
+            // this.entryMatchesFilters.bind(this),
             this.resultsComplete()
                 ? {
                       timeRange: this.elaboratedTimeRange.timeRange,
@@ -374,11 +370,9 @@ export class LogTableConfiguration {
 
     loadEntriesFromDataSource(): void {
         this.entriesStorage = new LogEntriesStorage();
-        this.entriesSelection = new LogEntriesSelection(this.entryMatchesFilters.bind(this), null, this.getKnownPropertiesMap());
+        this.entriesSelection = new LogEntriesSelection(null, this.getKnownPropertiesMap());
         this.numInputEntries = 0;
         this.histogram = null;
-        this.dataSourceFilters = this.dataSourceFilters.concat(this.visualizationFilters);
-        this.visualizationFilters = [];
         this.loading = true;
         this.dataBundleStats = null;
         this.sendMessage({
@@ -591,25 +585,16 @@ export class LogTableConfiguration {
     }
 
     addFilter(filter: DataSourceFilter): void {
-        if (this.resultsComplete()) {
-            this.visualizationFilters.push(filter);
-            this.recomputeEntriesSelection();
-        } else {
-            this.dataSourceFilters.push(filter);
-            this.loadEntriesFromDataSource();
-        }
+        this.dataSourceFilters.push(filter);
+        this.loadEntriesFromDataSource();
     }
 
     removeFilter(filterId: string): void {
-        const fromDataSource = this._removeFilter(filterId);
-        if (fromDataSource) {
-            this.loadEntriesFromDataSource();
-        } else {
-            this.recomputeEntriesSelection();
-        }
+        this._removeFilter(filterId);
+        this.loadEntriesFromDataSource();
     }
 
-    private _removeFilter(filterId: string): boolean {
+    private _removeFilter(filterId: string): void {
         let fromDataSource: boolean = false;
         this.dataSourceFilters = this.dataSourceFilters.filter((filter) => {
             const match = makeFilterId(filter) === filterId;
@@ -618,20 +603,14 @@ export class LogTableConfiguration {
             }
             return !match;
         });
-        this.visualizationFilters = this.visualizationFilters.filter((filter) => makeFilterId(filter) !== filterId);
-        return fromDataSource;
     }
 
     changeOrAddFilter(spec: PartialDataSourceFilter, filter: DataSourceFilter): void {
         const searchResult = this.searchFilter(spec);
         if (searchResult) {
-            const filtersList = searchResult.fromDataSource ? this.dataSourceFilters : this.visualizationFilters;
+            const filtersList = this.dataSourceFilters;
             filtersList[searchResult.idx] = filter;
-            if (searchResult.fromDataSource) {
-                this.loadEntriesFromDataSource();
-            } else {
-                this.recomputeEntriesSelection();
-            }
+            this.loadEntriesFromDataSource();
         } else {
             this.addFilter(filter);
         }
@@ -645,10 +624,6 @@ export class LogTableConfiguration {
         }
         return false;
     }
-
-    // getRelevantFiltersOnDataSource(spec: Partial<DataSourceFilter>): DataSourceFilter[] {
-    //     return this.dataSourceFilters.filter((filter) => filterMatchesSpec(filter, spec));
-    // }
 
     getExistenceFilters(selector: JSONFieldSelector): { title: string; onClick: () => void; condition: boolean }[] {
         const existenceFilter = this.searchFilter<ExistsDataSourceFilter>({
@@ -704,38 +679,14 @@ export class LogTableConfiguration {
         ].filter(notEmpty);
     }
 
-    searchFilter<Filter extends DataSourceFilter>(
-        spec: PartialDataSourceFilter
-    ): { filter: Filter; fromDataSource: boolean; idx: number } | null {
-        const sets = [
-            {
-                filters: this.visualizationFilters,
-                fromDataSource: false,
-            },
-            {
-                filters: this.dataSourceFilters,
-                fromDataSource: true,
-            },
-        ];
-        for (let { filters, fromDataSource } of sets) {
-            for (let idx = 0; idx < filters.length; idx += 1) {
-                const filter = filters[idx];
-                if (filterMatchesSpec(filter, spec)) {
-                    return { filter: filter as Filter, fromDataSource, idx };
-                }
+    searchFilter<Filter extends DataSourceFilter>(spec: PartialDataSourceFilter): { filter: Filter; idx: number } | null {
+        for (let idx = 0; idx < this.dataSourceFilters.length; idx += 1) {
+            const filter = this.dataSourceFilters[idx];
+            if (filterMatchesSpec(filter, spec)) {
+                return { filter: filter as Filter, idx };
             }
         }
         return null;
-    }
-
-    private entryMatchesFilters(entry: ProcessedLogEntry): boolean {
-        // Match all filters (AND)
-        for (let filter of this.dataSourceFilters.concat(this.visualizationFilters)) {
-            if (!filterMatches(filter, entry)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     getEntryCellData(entry: ProcessedLogEntry, propertyData: PropertyData): LogCellData {
@@ -839,7 +790,7 @@ class LogEntriesSelection {
     private timeRange: TimeRange | null;
 
     constructor(
-        private filter: (entry: ProcessedLogEntry) => boolean,
+        // private filter: (entry: ProcessedLogEntry) => boolean,
         timeConstraints: { timeRange: TimeRange; bucketSizeInMs: number } | null,
         knownPropertiesMap: Map<string, PropertyConfiguration>
     ) {
@@ -877,10 +828,6 @@ class LogEntriesSelection {
 
     private processEntry(entry: ProcessedLogEntry): void {
         if (this.timeRange && !timestampInRange(entry.timestamp, this.timeRange)) {
-            return;
-        }
-
-        if (!this.filter(entry)) {
             return;
         }
 

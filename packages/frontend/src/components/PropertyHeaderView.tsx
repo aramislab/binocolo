@@ -10,12 +10,40 @@ import { MenuCommands } from './PopupMenu.js';
 import { TextBlock } from './TextBlock.js';
 import styled from 'styled-components';
 import { JSONBasicValueTextBlock } from './JSONBasicValueTextBlock.js';
-import { IconProp } from '@fortawesome/fontawesome-svg-core';
+import { JSONBasicType } from '@binocolo/common/common.js';
+import { IconButton } from './IconButton.js';
 
 export const PropertyHeaderView = observer(
     ({ config, selector, close }: { config: LogTableConfiguration; selector: JSONFieldSelector; close?: () => void }) => {
+        const [freeSearch, setFreeSearch] = React.useState<string>('');
+        const [freeSearchExact, setFreeSearchExact] = React.useState<boolean>(false);
         const selectorText = makeStringFromJSONFieldSelector(selector);
         const valueStats = config.getPropertyValueStats(selector, 7);
+        const makeAddMinusOperations = (values: JSONBasicType[], exact: boolean) => {
+            const onClick = (include: boolean) => () => {
+                const filter: MatchDataSourceFilter = {
+                    type: 'match',
+                    selector: selectorText,
+                    include,
+                    values,
+                    exact,
+                };
+                config.changeOrAddFilter(
+                    {
+                        type: 'match',
+                        selector: selectorText,
+                        values,
+                    },
+                    filter
+                );
+            };
+            return (
+                <div className="operations">
+                    <IconButton config={config} icon={faAdd} onClick={onClick(true)} />
+                    <IconButton config={config} icon={faMinus} onClick={onClick(false)} />
+                </div>
+            );
+        };
         return (
             <>
                 {!config.histogramBreakdownProperty ||
@@ -72,46 +100,7 @@ export const PropertyHeaderView = observer(
                                     perc={occurrences / valueStats.total}
                                     config={config}
                                 >
-                                    <div className="operations">
-                                        <IconButton
-                                            config={config}
-                                            icon={faAdd}
-                                            onClick={() => {
-                                                config.changeOrAddFilter(
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                        values: [value],
-                                                    },
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                        include: true,
-                                                        values: [value],
-                                                    } as MatchDataSourceFilter
-                                                );
-                                            }}
-                                        />
-                                        <IconButton
-                                            config={config}
-                                            icon={faMinus}
-                                            onClick={() => {
-                                                config.changeOrAddFilter(
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                        values: [value],
-                                                    },
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                        include: false,
-                                                        values: [value],
-                                                    } as MatchDataSourceFilter
-                                                );
-                                            }}
-                                        />
-                                    </div>
+                                    {makeAddMinusOperations([value], true)}
                                     <JSONBasicValueTextBlock
                                         className="value"
                                         config={config}
@@ -145,44 +134,7 @@ export const PropertyHeaderView = observer(
                             )}
                             {valueStats.all.map(({ typeName, occurrences, values }) => (
                                 <PropertyValueStatRowDiv key={typeName} percWidth={80} percHeight={18} perc={1} config={config}>
-                                    <div className="operations">
-                                        <IconButton
-                                            config={config}
-                                            icon={faAdd}
-                                            onClick={() => {
-                                                config.changeOrAddFilter(
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                    },
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                        include: true,
-                                                        values,
-                                                    } as MatchDataSourceFilter
-                                                );
-                                            }}
-                                        />
-                                        <IconButton
-                                            config={config}
-                                            icon={faMinus}
-                                            onClick={() => {
-                                                config.changeOrAddFilter(
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                    },
-                                                    {
-                                                        type: 'match',
-                                                        selector: selectorText,
-                                                        include: false,
-                                                        values,
-                                                    } as MatchDataSourceFilter
-                                                );
-                                            }}
-                                        />
-                                    </div>
+                                    {makeAddMinusOperations(values, true)}
                                     <div className="otherValues">
                                         {`all ${occurrences} `}
                                         <span className="typeName" style={{ color: config.colorTheme.types[typeName] }}>
@@ -192,6 +144,37 @@ export const PropertyHeaderView = observer(
                                     </div>
                                 </PropertyValueStatRowDiv>
                             ))}
+                            <PropertyValueStatRowDiv percWidth={80} percHeight={18} perc={1} config={config}>
+                                {freeSearch.length > 0 ? (
+                                    makeAddMinusOperations([freeSearch], freeSearchExact)
+                                ) : (
+                                    <div className="operations"></div>
+                                )}
+                                <div className="customSearch">
+                                    <input
+                                        type="text"
+                                        placeholder="enter custom value…"
+                                        value={freeSearch}
+                                        onChange={(evt) => {
+                                            setFreeSearch(evt.target.value);
+                                        }}
+                                    ></input>
+                                    {freeSearch.length > 0 && (
+                                        <TextBlock
+                                            className="exactButton"
+                                            config={config}
+                                            theme={config.colorTheme.light}
+                                            numLines={1}
+                                            button
+                                            onClick={() => {
+                                                setFreeSearchExact(!freeSearchExact);
+                                            }}
+                                        >
+                                            {freeSearchExact ? 'exact' : 'substr'}
+                                        </TextBlock>
+                                    )}
+                                </div>
+                            </PropertyValueStatRowDiv>
                         </PropertyValueStatDiv>
                     </>
                 )}
@@ -204,12 +187,6 @@ const ResultsCompleteWarningIcon = ({ config, style }: { config: LogTableConfigu
     !config.resultsComplete() ? (
         <FontAwesomeIcon icon={faCircleExclamation} style={{ ...style, color: config.colorTheme.light.warning }} />
     ) : null;
-
-const IconButton = ({ config, onClick, icon }: { config: LogTableConfiguration; onClick: () => void; icon: IconProp }) => (
-    <TextBlock className="button" config={config} theme={config.colorTheme.light} button onClick={onClick}>
-        <FontAwesomeIcon icon={icon} size={'xs'} />
-    </TextBlock>
-);
 
 const ActionsSectionDiv = styled.div`
     display: flex;
@@ -305,6 +282,24 @@ const PropertyValueStatDiv = styled.div<{ readonly config: LogTableConfiguration
         background-color: ${(props) => props.config.colorTheme.dark.background};
         border-radius: 5px;
         max-width: max-content;
+    }
+    .customSearch {
+        display: flex;
+        align-items: center;
+        input {
+            outline: none;
+            height: 18px;
+            width: 200px;
+            border-radius: 3px;
+            border: 1px solid ${(props) => props.config.colorTheme.dark.lines};
+            background-color: ${(props) => props.config.colorTheme.light.background};
+        }
+        .exactButton {
+            margin-left: 5px;
+            padding: 1px 5px;
+            width: 50px;
+            justify-content: center;
+        }
     }
 `;
 

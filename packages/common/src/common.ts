@@ -271,6 +271,7 @@ export interface MatchDataSourceFilter {
     include: boolean;
     selector: string;
     values: JSONBasicType[];
+    exact: boolean;
 }
 
 export interface ExistsDataSourceFilter {

@@ -48,23 +48,6 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                             </TextBlock>
                         </div>
                     ))}
-                    {state.config.dataSourceFilters.length > 0 && state.config.visualizationFilters.length > 0 ? '→' : null}
-                    {state.config.visualizationFilters.map((filter) => (
-                        <div key={makeFilterId(filter)} className="filter">
-                            <div className="filter-text">{makeFilterDescription(filter)}</div>
-                            <TextBlock
-                                config={config}
-                                className="button"
-                                theme={theme}
-                                button
-                                onClick={() => {
-                                    config.removeFilter(makeFilterId(filter));
-                                }}
-                            >
-                                <FontAwesomeIcon icon={faXmark} size={'1x'} />
-                            </TextBlock>
-                        </div>
-                    ))}
                 </FiltersSection>
                 <EventsChart
                     colorTheme={state.config.colorTheme}
