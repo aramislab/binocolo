@@ -2,7 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { buildLoggerFromPino } from '@binocolo/backend/logging.js';
 import { Service } from '@binocolo/backend/service.js';
-// import openBrowser from 'react-dev-utils/openBrowser';
+import { openBrowser } from './open-browser.js';
 import pino from 'pino';
 import { join, resolve } from 'path';
 import { parseCommandLineArguments } from './cli-args.js';
@@ -23,6 +23,8 @@ const pinoLogger = pino({
         },
     },
 });
+
+const DEFAULT_PORT = 32652;
 
 async function runCli(): Promise<void> {
     const logger = buildLoggerFromPino(pinoLogger);
@@ -60,16 +62,16 @@ async function runCli(): Promise<void> {
             const service = new Service<ServiceSpecs>({
                 logger,
                 host: command.host || '127.0.0.1',
-                port: command.port,
+                port: command.port || DEFAULT_PORT,
                 configurationStorage: localConfig,
                 verbose: command.verbose,
                 getDataSourceAdapterFromSpec,
                 pinoLogger,
-                staticRootDir: resolve(join(__dirname, 'frontend-build')),
+                staticRootDir: resolve(join(__dirname, '..', 'frontend-build')),
             });
             service.runHTTPServer((url) => {
                 if (!command.nobrowser) {
-                    // openBrowser(url);
+                    openBrowser(url);
                 }
             });
             break;
