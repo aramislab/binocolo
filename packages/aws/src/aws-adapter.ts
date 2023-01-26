@@ -452,7 +452,6 @@ class CloudWatchQueryBuilder {
     }
 
     filters(filters: DataSourceFilter[]): CloudWatchQueryBuilder {
-        console.log(filters);
         for (let filter of filters) {
             const filterType = filter.type;
             switch (filterType) {
