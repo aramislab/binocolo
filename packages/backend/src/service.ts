@@ -1,10 +1,15 @@
 import { Logger as PinoLogger } from 'pino';
 import { Logger } from './logging.js';
-import { PropertyConfiguration } from '@binocolo/common/common.js';
-import { QueryDescriptor, IDataSourceAdapter } from './types.js';
+import {
+    PropertyConfiguration,
+    BackendCommand,
+    QueryDataSourceCommand,
+    LogTableConfigurationParams,
+    NamedSearch,
+} from '@binocolo/common/common.js';
+import { QueryDescriptor, IDataSourceAdapter, DataSourceWithSavedSearches } from './types.js';
 import { IDataSourceSpecificationsStorage } from './types.js';
 import { IConnectionHandler, INetworkHandler, runHTTPServer, SenderFunction } from './network.js';
-import { BackendCommand, QueryDataSourceCommand, LogTableConfigurationParams, RecordsScanningStats } from '@binocolo/common/common.js';
 
 type ServiceSpecs = {
     DataSourceAdapter: any;
@@ -41,12 +46,17 @@ export type DataSourceSetDescriptor<S extends ServiceSpecs> = {
     spec: S['DataSourceSet'];
 };
 
+export type DataSourceId = {
+    dataSourceSetId: string;
+    dataSourceId: string;
+};
+
 export interface IConfigurationStorage<S extends ServiceSpecs> {
     getDataSourceSetDescriptors(): Promise<DataSourceSetDescriptor<S>[]>;
     getDataSourceSetStorage(setId: string): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<S>>>;
-    getCurrentDataSourceId(): Promise<string>;
-    getDataSources(): Promise<DataSourceSpecification<S>[]>;
-    setCurrentDataSourceId(dataSourceId: string): Promise<void>;
+    getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification<S>>[]>;
+    getCurrentDataSourceId(): Promise<DataSourceId>;
+    setCurrentDataSourceId(id: DataSourceId): Promise<void>;
 }
 
 export class Service<S extends ServiceSpecs> implements INetworkHandler {
@@ -75,9 +85,11 @@ export class Service<S extends ServiceSpecs> implements INetworkHandler {
 }
 
 type DataSourceAdaptersMap = Map<string, IDataSourceAdapter>;
+type DataSourceSetsMap<S extends ServiceSpecs> = Map<string, IDataSourceSpecificationsStorage<DataSourceSpecification<S>>>;
 
 class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
     private query: QueryDescriptor | null;
+    private dataSourceSetsMap: DataSourceSetsMap<S>;
     private dataSourceAdaptersMap: DataSourceAdaptersMap;
 
     constructor(
@@ -89,6 +101,7 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
     ) {
         this.query = null;
         this.dataSourceAdaptersMap = new Map();
+        this.dataSourceSetsMap = new Map();
     }
 
     async start(): Promise<void> {
@@ -96,6 +109,7 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
         const dataSourcesConfig: LogTableConfigurationParams['dataSourceSets'] = [];
         for (let dataSourceSetSpec of dataSourceSets) {
             let dataSourceSet = await this.configurationStorage.getDataSourceSetStorage(dataSourceSetSpec.id);
+            this.dataSourceSetsMap.set(dataSourceSetSpec.id, dataSourceSet);
             const dataSources = await dataSourceSet.getDataSources();
             const dataSourceSetDescriptor: LogTableConfigurationParams['dataSourceSets'][number] = {
                 id: dataSourceSetSpec.id,
@@ -103,7 +117,7 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
                 dataSources: [],
             };
             dataSourcesConfig.push(dataSourceSetDescriptor);
-            for (let dataSourceSpec of dataSources) {
+            for (let { spec: dataSourceSpec, savedSearches } of dataSources) {
                 const adapter = this.getDataSourceAdapterFromSpec(dataSourceSpec.adapter, this.logger, this.verbose);
                 const id = `${dataSourceSetSpec.id}:${dataSourceSpec.id}`;
                 this.dataSourceAdaptersMap.set(id, adapter);
@@ -113,12 +127,14 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
                     ...adapter.specs,
                     knownProperties: dataSourceSpec.knownProperties,
                     initialQuery: adapter.defaultQuery,
+                    savedSearches: savedSearches,
                 });
             }
         }
+        const initialDataSourceId = await this.configurationStorage.getCurrentDataSourceId();
         const config: LogTableConfigurationParams = {
             ...DEFAULT_CONFIGURATION,
-            initialDataSourceId: await this.configurationStorage.getCurrentDataSourceId(),
+            initialDataSourceId: `${initialDataSourceId.dataSourceSetId}:${initialDataSourceId.dataSourceId}`,
             dataSourceSets: dataSourcesConfig,
         };
         await this.send({ type: 'configuration', params: config });
@@ -127,10 +143,15 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
     async onMessage(command: BackendCommand): Promise<void> {
         switch (command.type) {
             case 'queryDataSource':
-                await this.configurationStorage.setCurrentDataSourceId(command.dataSourceId);
+                await this.configurationStorage.setCurrentDataSourceId(parseDataSourceId(command.dataSourceId));
                 return await this.fetchEntries(command);
             case 'stopQuery':
                 this.stopQuery();
+                return;
+            case 'saveSearch':
+                const { dataSourceSetId, dataSourceId } = parseDataSourceId(command.dataSourceId);
+                const dataSourceSet = this.getDataSourceSetByDataSourceId(dataSourceSetId);
+                await dataSourceSet.saveSearch(dataSourceId, command.search);
                 return;
             default:
                 const exhaustiveCheck: never = command;
@@ -144,6 +165,15 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
             throw new Error(`Cannot find data source with ID ${dataSourceId}`);
         }
         return adapter;
+    }
+
+    private getDataSourceSetByDataSourceId(dataSourceId: string): IDataSourceSpecificationsStorage<DataSourceSpecification<S>> {
+        const setSpecId = dataSourceId.split(':')[0];
+        const dataSourceSet = this.dataSourceSetsMap.get(setSpecId);
+        if (!dataSourceSet) {
+            throw new Error(`Cannot find data source set with ID ${setSpecId}`);
+        }
+        return dataSourceSet;
     }
 
     private async fetchEntries({ timeRange, dataSourceId, queries }: QueryDataSourceCommand): Promise<void> {
@@ -222,3 +252,12 @@ const DEFAULT_CONFIGURATION: Pick<LogTableConfigurationParams, 'timezones' | 'ti
     },
     preambleProperties: ['@timestamp'],
 };
+
+function parseDataSourceId(id: string): { dataSourceSetId: string; dataSourceId: string } {
+    const parts = id.split(':');
+    if (parts.length !== 2) {
+        throw new Error(`Invalid dataSourceId: ${id}`);
+    }
+    const [dataSourceSetId, dataSourceId] = parts;
+    return { dataSourceSetId, dataSourceId };
+}

@@ -10,6 +10,7 @@
       <sourceFolder url="file://$MODULE_DIR$/packages/cli/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/packages/common/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/packages/frontend/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/serialization/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/packages/aws/dist" />
       <excludeFolder url="file://$MODULE_DIR$/packages/backend/dist" />
       <excludeFolder url="file://$MODULE_DIR$/packages/cli/dist" />

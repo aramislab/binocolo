@@ -1,5 +1,5 @@
 import inquirer from 'inquirer';
-import { LocalDataSourceSetDescriptor, ServiceSpecs } from './data-sources.js';
+import { LocalDataSourceSetDescriptor, ServiceSpecs } from '@binocolo/serialization/types.js';
 import { DataSourceSpecification } from '@binocolo/backend/service.js';
 
 export async function promptForNewDataSourceSpecification(

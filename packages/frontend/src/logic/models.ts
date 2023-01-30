@@ -19,6 +19,7 @@ import {
     parseFieldSelectorText,
     ExistsDataSourceFilter,
     DataSourceConfig,
+    NamedSearch,
 } from '@binocolo/common/common.js';
 import { TimeRange } from '@binocolo/common/types';
 import {
@@ -27,6 +28,7 @@ import {
     ElaboratedTimeRange,
     TimeBucketsAggregator,
     timestampInRange,
+    getTimeRangeFromSpecification,
 } from '@binocolo/common/time.js';
 import {
     ProcessedLogEntry,
@@ -44,7 +46,6 @@ import { ColorTheme, DEFAULT_COLOR_THEME } from './themes.js';
 import { makeFilterId } from './filters.js';
 import { calculatePropertyNodeSize, inspectPayload, makeEmptyPropertyNode, visitPayload } from './inspect_payload.js';
 import { FrequencyStats, mergeFrequencyStats, PropertyValueStatsCalculator } from './value_frequencies.js';
-import { getTimeRangeFromSpecification } from '@binocolo/common/time.js';
 
 const MIN_COLUMN_WIDTH = 50;
 const DEFAULT_COLUMN_WIDTH = 180;
@@ -118,6 +119,8 @@ export class LogTableConfiguration {
     public histogram: HistogramDataSeries[] | null;
     public dataSourceSets: LogTableConfigurationParams['dataSourceSets'];
 
+    public savedSearches: NamedSearch[];
+
     public colorTheme: ColorTheme;
 
     private dataSourcesMap: Map<string, DataSourceConfig>;
@@ -139,8 +142,11 @@ export class LogTableConfiguration {
 
         this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
 
+        this.savedSearches = this.getCurrentDataSource().savedSearches;
+
         // this.preambleProperties = this.getCurrentDataSource().preambleProperties.map(parseFieldSelectorText);
-        this.shownProperties = this.getCurrentDataSource().initialQuery.shownProperties.map(parseFieldSelectorText);
+        this.shownProperties = this.getCurrentDataSource().initialQuery.search.shownProperties.map(parseFieldSelectorText);
+        this.dataSourceFilters = this.getCurrentDataSource().initialQuery.search.filters;
         this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
         this.timeFormat = {
             timestampFormat: TIMESTAMP_FORMAT,
@@ -177,7 +183,6 @@ export class LogTableConfiguration {
         this.computePropertiesData();
         this.computeColumns();
 
-        this.dataSourceFilters = this.getCurrentDataSource().initialQuery.filters;
         this.entriesStorage = new LogEntriesStorage();
         this.entriesSelection = new LogEntriesSelection(null, this.getKnownPropertiesMap());
         this.numInputEntries = 0;
@@ -205,6 +210,7 @@ export class LogTableConfiguration {
             histogramBreakdownProperty: observable,
             shownPropertiesSet: observable.deep,
             currentDataSourceId: observable,
+            savedSearches: observable,
 
             toggleNullVisible: action,
             togglePropertyVisibility: action,
@@ -222,13 +228,55 @@ export class LogTableConfiguration {
             stopQuery: action,
             setHistogramBreakdownProperty: action,
             changeDataSource: action,
+            selectSavedSearch: action,
+            saveSearch: action,
+        });
+    }
+
+    public selectSavedSearch(searchId: string): void {
+        for (let search of this.savedSearches) {
+            if (search.id === searchId) {
+                this.shownProperties = search.spec.shownProperties.map(parseFieldSelectorText);
+                this.dataSourceFilters = search.spec.filters;
+                this.updatePropertiesMap();
+                this.computePropertiesData();
+                this.computeColumns();
+                this.loadEntriesFromDataSource();
+            }
+        }
+    }
+
+    public isSavedSearchNameValid(searchName: string): boolean {
+        if (searchName.length === 0) {
+            return false;
+        }
+        const id = makeId(searchName);
+        return !this.savedSearches.map((search) => search.id).includes(id);
+    }
+
+    public saveSearch(searchName: string): void {
+        const namedSearch: NamedSearch = {
+            id: makeId(searchName),
+            title: searchName,
+            spec: {
+                shownProperties: this.shownProperties.map(makeStringFromJSONFieldSelector),
+                filters: [...this.dataSourceFilters],
+            },
+        };
+        this.savedSearches.push(namedSearch);
+        this.sendMessage({
+            type: 'saveSearch',
+            dataSourceId: this.currentDataSourceId,
+            search: namedSearch,
         });
     }
 
     public changeDataSource(dataSourceId: string): void {
         this.currentDataSourceId = dataSourceId;
         this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
-        this.shownProperties = this.getCurrentDataSource().initialQuery.shownProperties.map(parseFieldSelectorText);
+        this.shownProperties = this.getCurrentDataSource().initialQuery.search.shownProperties.map(parseFieldSelectorText);
+        this.dataSourceFilters = this.getCurrentDataSource().initialQuery.search.filters;
+        this.savedSearches = this.getCurrentDataSource().savedSearches;
         this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
         this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
         this.dataSourceTimeRange = this.elaboratedTimeRange.timeRange;
@@ -238,7 +286,6 @@ export class LogTableConfiguration {
         this.computePropertiesData();
         this.computeColumns();
 
-        this.dataSourceFilters = this.getCurrentDataSource().initialQuery.filters;
         this.entriesStorage = new LogEntriesStorage();
         this.entriesSelection = new LogEntriesSelection(null, this.getKnownPropertiesMap());
         this.numInputEntries = 0;
@@ -873,3 +920,7 @@ class LogEntriesSelection {
         ];
     }
 }
+
+const makeId = (text: string): string => {
+    return text.replace(/[^a-zA-Z\d\-]/g, '-');
+};

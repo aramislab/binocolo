@@ -13,21 +13,22 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stefanomasini/binocolo.git"
+    "url": "git+https://github.com/aramislab/binocolo.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/stefanomasini/binocolo/issues"
+    "url": "https://github.com/aramislab/binocolo/issues"
   },
-  "homepage": "https://github.com/stefanomasini/binocolo#readme",
+  "homepage": "https://github.com/aramislab/binocolo#readme",
   "workspaces": [
     "packages/common",
     "packages/backend",
     "packages/aws",
     "packages/cli",
     "packages/frontend",
-    "packages/cli-frontend"
+    "packages/cli-frontend",
+    "packages/serialization"
   ],
   "devDependencies": {
     "copyfiles": "^2.4.1",

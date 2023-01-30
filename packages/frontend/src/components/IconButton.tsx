@@ -4,8 +4,19 @@ import { TextBlock } from './TextBlock.js';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React from 'react';
 
-export const IconButton = ({ config, onClick, icon }: { config: LogTableConfiguration; onClick: () => void; icon: IconProp }) => (
+export const IconButton = ({
+    config,
+    onClick,
+    icon,
+    className,
+}: {
+    config: LogTableConfiguration;
+    onClick: () => void;
+    icon: IconProp;
+    className?: string;
+}) => (
     <TextBlock
+        className={className}
         style={{ maxWidth: 'max-content', padding: '1px 6px', marginRight: 3 }}
         config={config}
         theme={config.colorTheme.light}

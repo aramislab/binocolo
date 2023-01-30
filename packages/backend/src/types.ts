@@ -1,16 +1,17 @@
 import { Static, Type } from '@sinclair/typebox';
 import { TimeRange } from '@binocolo/common/types.js';
 import {
-    DataSourceFilter,
-    JSONFieldSelector,
-    HistogramDataSeries,
-    RecordsScanningStats,
+    // DataSourceFilter,
+    // JSONFieldSelector,
+    // HistogramDataSeries,
+    // RecordsScanningStats,
     DataSourceSpecs,
     DataSourceConfig,
+    DataSourceQuery,
+    NamedSearch,
 } from '@binocolo/common/common.js';
-import { ElaboratedTimeRange } from '@binocolo/common/time.js';
+// import { ElaboratedTimeRange } from '@binocolo/common/time.js';
 import { SenderFunction } from './network.js';
-import { DataSourceQuery } from '@binocolo/common/common.js';
 
 // Documentation:
 // - https://www.npmjs.com/package/@sinclair/typebox
@@ -39,11 +40,17 @@ type QueryLogsParams = {
 
 export interface IDataSourceAdapter {
     specs: DataSourceSpecs;
-    queryDataSource: (params: QueryLogsParams) => Promise<void>;
+    queryDataSource(params: QueryLogsParams): Promise<void>;
     defaultQuery: DataSourceConfig['initialQuery'];
 }
 
+export type DataSourceWithSavedSearches<DataSourceSpecification> = {
+    spec: DataSourceSpecification;
+    savedSearches: NamedSearch[];
+};
+
 export interface IDataSourceSpecificationsStorage<DataSourceSpecification> {
-    getDataSources(): Promise<DataSourceSpecification[]>;
+    getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification>[]>;
     addDataSource(dataSourceSpec: DataSourceSpecification): Promise<void>;
+    saveSearch(dataSourceId: string, search: NamedSearch): Promise<void>;
 }

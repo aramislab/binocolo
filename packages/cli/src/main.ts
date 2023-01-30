@@ -7,8 +7,9 @@ import pino from 'pino';
 import { join, resolve } from 'path';
 import { parseCommandLineArguments } from './cli-args.js';
 import { promptForNewDataSourceSetSpecification, promptForNewDataSourceSpecification } from './interaction.js';
-import { getDataSourceAdapterFromSpec, ServiceSpecs } from './data-sources.js';
+import { ServiceSpecs } from '@binocolo/serialization/types.js';
 import { LocalConfiguration } from './local-storage.js';
+import { getDataSourceAdapterFromSpec } from './data-sources.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

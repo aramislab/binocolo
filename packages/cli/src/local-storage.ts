@@ -1,57 +1,21 @@
 import ConfStore from 'conf';
 import { Logger } from '@binocolo/backend/logging';
-import { Static, Type } from '@sinclair/typebox';
 import { stat } from 'node:fs/promises';
-import {
-    LocalDataSourceSetDescriptor,
-    deserializeDataSourceSpecifications,
-    serializeDataSourceSpecifications,
-    ServiceSpecs,
-} from './data-sources.js';
-import { DataSourceSpecification, IConfigurationStorage } from '@binocolo/backend/service.js';
-import { validateJson } from '@binocolo/backend/json-validation.js';
-import { IDataSourceSpecificationsStorage } from '@binocolo/backend/types.js';
+import { DataSourceId, DataSourceSpecification, IConfigurationStorage } from '@binocolo/backend/service.js';
+import { DataSourceWithSavedSearches, IDataSourceSpecificationsStorage } from '@binocolo/backend/types.js';
 import { CloudwatchS3ConfigStorage } from '@binocolo/aws/aws-s3-config-storage.js';
-
-const CurrentSerializedLocalConfigurationDataSchema = Type.Object({
-    v: Type.Literal(1),
-    state: Type.Object({
-        currentDataSourceId: Type.String(),
-    }),
-    dataSources: Type.Any(),
-    dataSourcesSets: Type.Array(
-        Type.Object({
-            id: Type.String(),
-            name: Type.String(),
-            spec: Type.Union([
-                Type.Object({
-                    type: Type.Literal('local'),
-                }),
-                Type.Object({
-                    type: Type.Literal('AWSS3'),
-                    region: Type.String(),
-                    bucket: Type.String(),
-                    prefix: Type.String(),
-                }),
-            ]),
-        })
-    ),
-});
-type CurrentSerializedLocalConfigurationData = Static<typeof CurrentSerializedLocalConfigurationDataSchema>;
-
-const SerializedLocalConfigurationDataSchema = Type.Union([CurrentSerializedLocalConfigurationDataSchema]);
-type SerializedLocalConfigurationData = Static<typeof SerializedLocalConfigurationDataSchema>;
-
-type LocalConfigurationData = {
-    currentDataSourceId: string;
-    dataSources: DataSourceSpecification<ServiceSpecs>[];
-    dataSourcesSets: LocalDataSourceSetDescriptor[];
-};
+import { NamedSearch } from '@binocolo/common/common.js';
+import { ServiceSpecs, LocalDataSourceSetDescriptor, LocalConfigurationData } from '@binocolo/serialization/types.js';
+import { deserializeDataSourceSpecification, serializeDataSourceSpecification } from '@binocolo/serialization/data-source/serialize.js';
+import { deserializeSavedSearch, serializeSavedSearch } from '@binocolo/serialization/saved-search/serialize.js';
+import { serializeLocalConfuration, deserializeLocalConfiguration } from '@binocolo/serialization/local-configuration/serialize.js';
 
 type LocalConfigurationParams = {
     logger: Logger;
     verbose?: boolean;
 };
+
+const LOCAL_DATA_SOURCE_SET_ID = 'local';
 
 export class LocalConfiguration
     implements IDataSourceSpecificationsStorage<DataSourceSpecification<ServiceSpecs>>, IConfigurationStorage<ServiceSpecs>
@@ -81,15 +45,23 @@ export class LocalConfiguration
 
     initialize(dataSourceSpec: DataSourceSpecification<ServiceSpecs>): void {
         this.setData({
-            currentDataSourceId: dataSourceSpec.id,
-            dataSources: [dataSourceSpec],
+            currentDataSourceId: {
+                dataSourceSetId: LOCAL_DATA_SOURCE_SET_ID,
+                dataSourceId: dataSourceSpec.id,
+            },
+            dataSources: [
+                {
+                    spec: dataSourceSpec,
+                    savedSearches: [],
+                },
+            ],
             dataSourcesSets: [],
         });
     }
 
     async getDataSourceSetDescriptors(): Promise<LocalDataSourceSetDescriptor[]> {
         let data = this.getData();
-        let localSet: LocalDataSourceSetDescriptor = { id: 'local', name: 'Local', spec: { type: 'local' } };
+        let localSet: LocalDataSourceSetDescriptor = { id: LOCAL_DATA_SOURCE_SET_ID, name: 'Local', spec: { type: 'local' } };
         return [localSet].concat(data.dataSourcesSets);
     }
 
@@ -109,15 +81,17 @@ export class LocalConfiguration
             if (descriptor.id === setId) {
                 const specType = descriptor.spec.type;
                 switch (specType) {
-                    case 'local':
+                    case LOCAL_DATA_SOURCE_SET_ID:
                         return this;
                     case 'AWSS3':
                         return new CloudwatchS3ConfigStorage({
                             region: descriptor.spec.region,
                             bucket: descriptor.spec.bucket,
                             prefix: descriptor.spec.prefix,
-                            deserializeDataSourceSpecifications,
-                            serializeDataSourceSpecifications,
+                            deserializeDataSourceSpecification,
+                            serializeDataSourceSpecification,
+                            deserializeSavedSearch,
+                            serializeSavedSearch,
                             logger: this.params.logger,
                             verbose: this.params.verbose,
                         });
@@ -133,67 +107,98 @@ export class LocalConfiguration
     async addDataSource(dataSourceSpec: DataSourceSpecification<ServiceSpecs>): Promise<void> {
         let data = this.getData();
         for (let other of data.dataSources) {
-            if (other.id === dataSourceSpec.id) {
+            if (other.spec.id === dataSourceSpec.id) {
                 throw new Error(`This data source ID already exists: ${dataSourceSpec.id}`);
             }
         }
-        data.dataSources.push(dataSourceSpec);
+        data.dataSources.push({
+            spec: dataSourceSpec,
+            savedSearches: [],
+        });
         this.setData(data);
     }
 
     private getData(): LocalConfigurationData {
         const dataName = `config data at ${this.path}`;
-        let data = validateJson<SerializedLocalConfigurationData>(this.store.get('data'), SerializedLocalConfigurationDataSchema, dataName);
-        let { dataSources, obsolete } = deserializeDataSourceSpecifications(data.dataSources, dataName);
-        if (data.v !== 1) {
-            obsolete = true;
-        }
-        let result: LocalConfigurationData = {
-            currentDataSourceId: data.state.currentDataSourceId,
-            dataSources,
-            dataSourcesSets: data.dataSourcesSets,
-        };
+        const { localConfiguration, obsolete } = deserializeLocalConfiguration(this.store.get('data'), dataName);
         if (obsolete) {
-            this.setData(result);
+            this.setData(localConfiguration);
         }
-        return result;
+        return localConfiguration;
     }
 
     private setData(data: LocalConfigurationData) {
-        const dataOnDisk: CurrentSerializedLocalConfigurationData = {
-            v: 1,
-            state: {
-                currentDataSourceId: data.currentDataSourceId,
-            },
-            dataSources: serializeDataSourceSpecifications(data.dataSources),
-            dataSourcesSets: data.dataSourcesSets,
-        };
-        this.store.set('data', dataOnDisk);
+        this.store.set('data', serializeLocalConfuration(data));
     }
 
-    async getDataSources(): Promise<DataSourceSpecification<ServiceSpecs>[]> {
+    async getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification<ServiceSpecs>>[]> {
         return this.getData().dataSources;
     }
 
-    async getCurrentDataSourceId(): Promise<string> {
-        return this.getData().currentDataSourceId;
-    }
-
-    async setCurrentDataSourceId(dataSourceId: string): Promise<void> {
-        let data = this.getData();
-        const [setId, dsId] = dataSourceId.split(':');
+    async getCurrentDataSourceId(): Promise<DataSourceId> {
+        const data = this.getData();
+        let firstIdFound: DataSourceId | null = null;
         for (let d of await this.getDataSourceSetDescriptors()) {
-            if (d.id === setId) {
+            if (d.id === data.currentDataSourceId.dataSourceSetId) {
                 const ds = await this.getDataSourceSetStorage(d.id);
                 for (let dataSource of await ds.getDataSources()) {
-                    if (dataSource.id === dsId) {
-                        if (data.currentDataSourceId !== dsId) {
-                            data.currentDataSourceId = dataSourceId;
+                    if (firstIdFound === null) {
+                        firstIdFound = {
+                            dataSourceSetId: d.id,
+                            dataSourceId: dataSource.spec.id,
+                        };
+                    }
+                    if (dataSource.spec.id === data.currentDataSourceId.dataSourceId) {
+                        return data.currentDataSourceId;
+                    }
+                }
+            }
+        }
+        if (firstIdFound) {
+            return firstIdFound;
+        }
+        throw new Error('No data sources defined');
+    }
+
+    async setCurrentDataSourceId({ dataSourceSetId, dataSourceId }: DataSourceId): Promise<void> {
+        let data = this.getData();
+        for (let d of await this.getDataSourceSetDescriptors()) {
+            if (d.id === dataSourceSetId) {
+                const ds = await this.getDataSourceSetStorage(d.id);
+                for (let dataSource of await ds.getDataSources()) {
+                    if (dataSource.spec.id === dataSourceId) {
+                        if (
+                            data.currentDataSourceId.dataSourceSetId !== dataSourceSetId ||
+                            data.currentDataSourceId.dataSourceId !== dataSourceId
+                        ) {
+                            data.currentDataSourceId = {
+                                dataSourceSetId,
+                                dataSourceId,
+                            };
                             this.setData(data);
                         }
                         return;
                     }
                 }
+            }
+        }
+        throw new Error(`Invalid data source ID: ${dataSourceId}`);
+    }
+
+    async saveSearch(dataSourceId: string, search: NamedSearch): Promise<void> {
+        const [setId, dsId] = dataSourceId.split(':');
+        if (setId !== LOCAL_DATA_SOURCE_SET_ID) {
+            throw new Error(`Invalid data source set ID: ${setId}`);
+        }
+        let data = this.getData();
+        for (let dataSource of data.dataSources) {
+            if (dataSource.spec.id === dsId) {
+                if (dataSource.savedSearches.map((ds) => ds.id).includes(search.id)) {
+                    throw new Error(`Search ID already exists: ${search.id}`);
+                }
+                dataSource.savedSearches.push(search);
+                this.setData(data);
+                return;
             }
         }
         throw new Error(`Invalid data source ID: ${dataSourceId}`);

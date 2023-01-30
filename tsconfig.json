@@ -18,6 +18,9 @@
     },
     {
       "path": "./packages/cli-frontend/tsconfig.ref.json"
+    },
+    {
+      "path": "./packages/serialization/tsconfig.ref.json"
     }
   ],
 }

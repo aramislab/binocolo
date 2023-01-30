@@ -11,6 +11,8 @@ import { makeFilterDescription, makeFilterId } from '../logic/filters.js';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { MONOSPACE_FONT, SERIF_FONT } from '../logic/types.js';
+import { faBars } from '@fortawesome/free-solid-svg-icons';
+import { SavedSearches } from './SavedSearches.js';
 
 const App = observer(({ state }: { state: IApplicationState }) => {
     if (state.terminated) {
@@ -25,30 +27,45 @@ const App = observer(({ state }: { state: IApplicationState }) => {
     const theme = state.config.colorTheme.light;
     const config = state.config;
     const tzInfo = config.getTimezoneInfo();
+
     return (
         <AppDiv theme={theme}>
             <MainArea>
                 <PageHeader theme={theme}>
                     <TimeRangeControl config={state.config} />
                 </PageHeader>
-                <FiltersSection theme={theme} config={config}>
-                    {state.config.dataSourceFilters.map((filter) => (
-                        <div key={makeFilterId(filter)} className="filter dataSourceFilter">
-                            <div className="filter-text">{makeFilterDescription(filter)}</div>
-                            <TextBlock
-                                config={config}
-                                className="button"
-                                theme={theme}
-                                button
-                                onClick={() => {
-                                    config.removeFilter(makeFilterId(filter));
-                                }}
-                            >
-                                <FontAwesomeIcon icon={faXmark} size={'1x'} />
-                            </TextBlock>
-                        </div>
-                    ))}
-                </FiltersSection>
+                <QuerySection>
+                    <TextBlock
+                        config={config}
+                        className="savedSearches"
+                        theme={theme}
+                        button
+                        popup={({ close }) => ({
+                            title: 'Saved Searches',
+                            component: <SavedSearches config={config} close={close} />,
+                        })}
+                    >
+                        <FontAwesomeIcon icon={faBars} size={'xs'} />
+                    </TextBlock>
+                    <FiltersSection theme={theme} config={config}>
+                        {state.config.dataSourceFilters.map((filter) => (
+                            <div key={makeFilterId(filter)} className="filter dataSourceFilter">
+                                <div className="filter-text">{makeFilterDescription(filter)}</div>
+                                <TextBlock
+                                    config={config}
+                                    className="button"
+                                    theme={theme}
+                                    button
+                                    onClick={() => {
+                                        config.removeFilter(makeFilterId(filter));
+                                    }}
+                                >
+                                    <FontAwesomeIcon icon={faXmark} size={'1x'} />
+                                </TextBlock>
+                            </div>
+                        ))}
+                    </FiltersSection>
+                </QuerySection>
                 <EventsChart
                     colorTheme={state.config.colorTheme}
                     histogramData={state.config.buildHistogramData()}
@@ -122,6 +139,19 @@ const App = observer(({ state }: { state: IApplicationState }) => {
     );
 });
 
+const QuerySection = styled.div`
+    display: flex;
+    flex-direction: row;
+    margin: 10px 0;
+
+    .savedSearches {
+        margin-top: 2px;
+        min-height: 26px;
+        min-width: 26px;
+        justify-content: center;
+    }
+`;
+
 const MainArea = styled.div`
     padding: 20px 20px 10px 20px;
     display: flex;
@@ -153,7 +183,6 @@ const AppDiv = styled.div<SectionParams>`
 const FiltersSection = styled.div<{ readonly theme: RegionColorTheme; readonly config: LogTableConfiguration }>`
     display: flex;
     align-items: center;
-    margin: 10px 0;
     flex-wrap: wrap;
     > .filter {
         font-family: ${MONOSPACE_FONT};

@@ -13,12 +13,13 @@ import {
     HistogramDataSeries,
     makeStringFromJSONFieldSelector,
     DataSourceConfig,
+    DataSourceQuery,
+    BuildHistogramQuery,
+    FetchEntriesQuery,
 } from '@binocolo/common/common.js';
 import { ElaboratedTimeRange, elaborateTimeRange } from '@binocolo/common/time.js';
 import { HOUR, MIN, SEC, TimeRange } from '@binocolo/common/types.js';
 import { SenderFunction } from '@binocolo/backend/network.js';
-import { DataSourceQuery } from '@binocolo/common/common.js';
-import { BuildHistogramQuery, FetchEntriesQuery } from '@binocolo/common/common.js';
 
 const QUERY_RESULTS_LIMIT = 5000;
 const DELAY_BETWEEN_API_CALLS_IN_MS = 500;
@@ -69,8 +70,10 @@ export class CloudwatchLogsAdapter implements IDataSourceAdapter {
         timestampPropertySelector: '@timestamp',
     };
     public defaultQuery: DataSourceConfig['initialQuery'] = {
-        filters: [],
-        shownProperties: ['severity', 'message'],
+        search: {
+            filters: [],
+            shownProperties: ['severity', 'message'],
+        },
         timeRange: {
             type: 'relative',
             amount: 15,
@@ -510,9 +513,9 @@ class CloudWatchQueryBuilder {
     }
 }
 
-// From: https://stackoverflow.com/a/9310752/225097
+// Adapted from: https://stackoverflow.com/a/9310752/225097
 function escapeRegExp(value: string): string {
-    return value.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    return value.replace(/[-[\]{}()*+?.,\\^$|#\s\/]/g, '\\$&');
 }
 
 function makePeriodString(durationMs: number): string {
@@ -534,50 +537,5 @@ function divideAndAssertMultipleOf(durationMs: number, roundTo: number): number 
     }
     return value;
 }
-
-// function buildCloudWatchLogsQuery(filters: DataSourceFilter[], limit: number): string {
-//     let lines: string[] = ['fields @timestamp, @ingestionTime, @message'];
-//     for (let filter of filters) {
-//         switch (filter.type) {
-//             case 'match':
-//                 (() => {
-//                     const selector = makeStringFromJSONFieldSelector(filter.selector);
-//                     const equalityOp = filter.include ? '=' : '!=';
-//                     const booleanOp = filter.include ? ' or ' : ' and ';
-//                     const conditionText = filter.values
-//                         .map((value) => `${selector} ${equalityOp} ${JSON.stringify(value)}`)
-//                         .join(booleanOp);
-//                     lines.push(`| filter ${conditionText}`);
-//                 })();
-//                 break;
-//
-//             case 'exists':
-//                 (() => {
-//                     const selector = makeStringFromJSONFieldSelector(filter.selector);
-//                     if (filter.exists) {
-//                         if (filter.considerNulls) {
-//                             lines.push(`| filter ispresent(${selector})`);
-//                         } else {
-//                             // not implemented, because not possible
-//                         }
-//                     } else {
-//                         if (filter.considerNulls) {
-//                             lines.push(`| filter not ispresent(${selector})`);
-//                         } else {
-//                             // not implemented, because not possible
-//                         }
-//                     }
-//                 })();
-//                 break;
-//
-//             default:
-//                 const exhaustiveCheck: never = filter;
-//                 throw new Error(`Unhandled filter.type: ${exhaustiveCheck}`);
-//         }
-//     }
-//     lines.push(`| sort @timestamp desc`);
-//     lines.push(`| limit ${limit}`);
-//     return lines.join('\n');
-// }
 
 const sleepMs = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

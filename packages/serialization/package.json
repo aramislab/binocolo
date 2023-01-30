@@ -1,5 +1,5 @@
 {
-  "name": "@binocolo/common",
+  "name": "@binocolo/serialization",
   "version": "1.0.0",
   "description": "",
   "type": "module",
@@ -33,7 +33,6 @@
   },
   "homepage": "https://github.com/aramislab/binocolo#readme",
   "dependencies": {
-    "deep-equal": "^2.2.0"
   },
   "devDependencies": {
     "@types/deep-equal": "^1.0.1",

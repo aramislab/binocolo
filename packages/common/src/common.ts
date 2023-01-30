@@ -39,7 +39,13 @@ export type StopQueryCommand = {
     type: 'stopQuery';
 };
 
-export type BackendCommand = QueryDataSourceCommand | StopQueryCommand;
+export type SaveSearchCommand = {
+    type: 'saveSearch';
+    dataSourceId: string;
+    search: NamedSearch;
+};
+
+export type BackendCommand = QueryDataSourceCommand | StopQueryCommand | SaveSearchCommand;
 
 export function parseBackendCommand(data: any): BackendCommand {
     // TODO: implement Schema checking
@@ -192,9 +198,9 @@ export type DataSourceConfig = {
     timestampPropertySelector: string;
     initialQuery: {
         timeRange: TimeRangeSpecification;
-        shownProperties: string[];
-        filters: DataSourceFilter[];
+        search: SearchSpec;
     };
+    savedSearches: NamedSearch[];
 };
 
 export type DataSourceSpecs = Pick<DataSourceConfig, 'supportedFilters' | 'timestampPropertySelector'>;
@@ -293,3 +299,16 @@ export function filterMatchesSpec(filter: DataSourceFilter, spec: Partial<DataSo
     }
     return true;
 }
+
+// ---- Searches -----------------------------------
+
+export type NamedSearch = {
+    id: string;
+    title: string;
+    spec: SearchSpec;
+};
+
+export type SearchSpec = {
+    filters: DataSourceFilter[];
+    shownProperties: string[];
+};

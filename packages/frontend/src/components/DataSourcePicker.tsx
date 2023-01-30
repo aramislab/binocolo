@@ -8,8 +8,8 @@ export const DataSourcePicker = ({ config, close }: { config: LogTableConfigurat
             {config.dataSourceSets.map(
                 (dataSourceSet) =>
                     dataSourceSet.dataSources.length > 0 && (
-                        <div key={dataSourceSet.id}>
-                            {dataSourceSet.name}
+                        <div key={dataSourceSet.id} className="section">
+                            <div className="title">{dataSourceSet.name}</div>
                             {dataSourceSet.dataSources.map((dataSource) => (
                                 <TextBlock
                                     key={dataSource.id}
@@ -37,7 +37,20 @@ const DataSourcePickerContainerDiv = styled.div<{ readonly config: LogTableConfi
     display: flex;
     flex-direction: column;
 
+    .section {
+        margin-top: 10px;
+    }
+
+    .section:first-child {
+        margin-top: 0;
+    }
+
+    .title {
+        font-weight: bold;
+        font-style: italic;
+    }
+
     .button {
-        padding: 3px 5px;
+        padding: 2px 0;
     }
 `;
