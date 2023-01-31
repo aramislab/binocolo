@@ -3,10 +3,13 @@ import { Static, Type } from '@sinclair/typebox';
 export const SerializedLocalConfigurationDataV1Schema = Type.Object({
     v: Type.Literal(1),
     state: Type.Object({
-        currentDataSourceId: Type.Object({
-            dataSourceSetId: Type.String(),
-            dataSourceId: Type.String(),
-        }),
+        currentDataSourceId: Type.Union([
+            Type.Object({
+                dataSourceSetId: Type.String(),
+                dataSourceId: Type.String(),
+            }),
+            Type.Null(),
+        ]),
     }),
     dataSources: Type.Array(
         Type.Object({

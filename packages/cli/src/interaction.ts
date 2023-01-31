@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
 import { ServiceSpecs } from '@binocolo/serialization/types.js';
 import { serializeDataSourceSpecification, deserializeDataSourceSpecification } from '@binocolo/serialization/data-source/serialize.js';
+import { serializeSavedSearch, deserializeSavedSearch } from '@binocolo/serialization/saved-search/serialize.js';
 import {
     DataSourceSetDescriptor,
     DataSourceSpecification,
@@ -8,6 +9,35 @@ import {
     IDataSourceSetStorage,
 } from '@binocolo/backend/types';
 import { LocalConfiguration } from './local-storage';
+import { NamedSearch } from '@binocolo/common/common';
+
+export async function editSavedSearch(config: LocalConfiguration) {
+    console.log('Editing saved search:');
+    const { dataSourceSetStorage, dataSource } = await promptDataSource(config);
+    let answers = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'savedSearch',
+            message: 'Data Source',
+            choices: dataSource.savedSearches.map((ss) => ({ name: ss.title, value: ss })),
+            prefix: '',
+            suffix: '?',
+        },
+    ]);
+    const savedSearch: NamedSearch = answers.savedSearch;
+    const savedSearchJson = JSON.stringify(serializeSavedSearch(savedSearch), null, 2);
+    answers = await inquirer.prompt([
+        {
+            type: 'editor',
+            name: 'savedSearch',
+            message: 'Saved Search',
+            default: savedSearchJson,
+        },
+    ]);
+    const editedSavedSearchJson: string = answers.savedSearch;
+    const { savedSearch: editedSavedSearch } = deserializeSavedSearch(JSON.parse(editedSavedSearchJson), 'manually edited data');
+    await dataSourceSetStorage.saveSearch(dataSource.spec.id, editedSavedSearch);
+}
 
 export async function editDataSource(config: LocalConfiguration) {
     console.log('Editing data source:');

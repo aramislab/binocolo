@@ -6,7 +6,12 @@ import { openBrowser } from './open-browser.js';
 import pino from 'pino';
 import { join, resolve } from 'path';
 import { parseCommandLineArguments } from './cli-args.js';
-import { editDataSource, promptForNewDataSourceSetSpecification, promptForNewDataSourceSpecification } from './interaction.js';
+import {
+    editDataSource,
+    editSavedSearch,
+    promptForNewDataSourceSetSpecification,
+    promptForNewDataSourceSpecification,
+} from './interaction.js';
 import { ServiceSpecs } from '@binocolo/serialization/types.js';
 import { LocalConfiguration } from './local-storage.js';
 import { getDataSourceAdapterFromSpec } from './data-sources.js';
@@ -28,21 +33,24 @@ const pinoLogger = pino({
 const DEFAULT_PORT = 32652;
 
 async function runCli(): Promise<void> {
-    // const logger = buildLoggerFromPino(pinoLogger);
-    const logger = buildLoggerFromConsole();
+    const logger = buildLoggerFromPino(pinoLogger);
+    // const logger = buildLoggerFromConsole();
 
     const localConfig = new LocalConfiguration({
         logger,
-        // verbose: true,
+        verbose: true,
     });
 
-    if (!(await localConfig.exists())) {
-        console.log(`Local configuration missing. Creating a new one at ${localConfig.path}`);
-        const { spec: dataSourceSpec } = await promptForNewDataSourceSpecification(await localConfig.getDataSourceSetDescriptors());
-        localConfig.initialize(dataSourceSpec);
-    }
-
     const command = parseCommandLineArguments();
+
+    if (!(await localConfig.exists())) {
+        if (command.type !== 'addDataSource' && command.type !== 'addDataSourceSet') {
+            console.log(`Local configuration missing. You must run either of the "addDataSource" or "addDataSourceSet" commands.`);
+            return;
+        }
+        // const { spec: dataSourceSpec } = await promptForNewDataSourceSpecification(await localConfig.getDataSourceSetDescriptors());
+        localConfig.initialize();
+    }
 
     const commandType = command.type;
     switch (commandType) {
@@ -87,6 +95,9 @@ async function runCli(): Promise<void> {
             break;
         case 'editDataSource':
             await editDataSource(localConfig);
+            break;
+        case 'editSavedSearch':
+            await editSavedSearch(localConfig);
             break;
         default:
             const exhaustiveCheck: never = commandType;

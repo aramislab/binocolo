@@ -46,25 +46,20 @@ export class LocalConfiguration implements IDataSourceSetStorage<ServiceSpecs>, 
         return true;
     }
 
-    initialize(dataSourceSpec: DataSourceSpecification<ServiceSpecs>): void {
+    initialize(): void {
         this.setData({
-            currentDataSourceId: {
-                dataSourceSetId: LOCAL_DATA_SOURCE_SET_ID,
-                dataSourceId: dataSourceSpec.id,
-            },
-            dataSources: [
-                {
-                    spec: dataSourceSpec,
-                    savedSearches: [],
-                },
-            ],
+            currentDataSourceId: null,
+            dataSources: [],
             dataSourcesSets: [],
         });
     }
 
     async getDataSourceSetDescriptors(): Promise<DataSourceSetDescriptor<ServiceSpecs>[]> {
-        let data = this.getData();
         let localSet: DataSourceSetDescriptor<ServiceSpecs> = { id: LOCAL_DATA_SOURCE_SET_ID, name: 'Local', spec: { type: 'local' } };
+        if (!(await this.exists())) {
+            return [localSet];
+        }
+        let data = this.getData();
         return [localSet].concat(data.dataSourcesSets);
     }
 
@@ -183,18 +178,20 @@ export class LocalConfiguration implements IDataSourceSetStorage<ServiceSpecs>, 
         const data = this.getData();
         let firstIdFound: DataSourceId | null = null;
         for (let d of await this.getDataSourceSetDescriptors()) {
-            if (d.id === data.currentDataSourceId.dataSourceSetId) {
-                const ds = await this.getDataSourceSetStorage(d.id);
-                for (let dataSource of await ds.getDataSources()) {
-                    if (firstIdFound === null) {
-                        firstIdFound = {
-                            dataSourceSetId: d.id,
-                            dataSourceId: dataSource.spec.id,
-                        };
-                    }
-                    if (dataSource.spec.id === data.currentDataSourceId.dataSourceId) {
-                        return data.currentDataSourceId;
-                    }
+            const ds = await this.getDataSourceSetStorage(d.id);
+            for (let dataSource of await ds.getDataSources()) {
+                if (firstIdFound === null) {
+                    firstIdFound = {
+                        dataSourceSetId: d.id,
+                        dataSourceId: dataSource.spec.id,
+                    };
+                }
+                if (
+                    data.currentDataSourceId &&
+                    d.id === data.currentDataSourceId.dataSourceSetId &&
+                    dataSource.spec.id === data.currentDataSourceId.dataSourceId
+                ) {
+                    return data.currentDataSourceId;
                 }
             }
         }
@@ -212,6 +209,7 @@ export class LocalConfiguration implements IDataSourceSetStorage<ServiceSpecs>, 
                 for (let dataSource of await ds.getDataSources()) {
                     if (dataSource.spec.id === dataSourceId) {
                         if (
+                            !data.currentDataSourceId ||
                             data.currentDataSourceId.dataSourceSetId !== dataSourceSetId ||
                             data.currentDataSourceId.dataSourceId !== dataSourceId
                         ) {
@@ -230,17 +228,10 @@ export class LocalConfiguration implements IDataSourceSetStorage<ServiceSpecs>, 
     }
 
     async saveSearch(dataSourceId: string, search: NamedSearch): Promise<void> {
-        const [setId, dsId] = dataSourceId.split(':');
-        if (setId !== LOCAL_DATA_SOURCE_SET_ID) {
-            throw new Error(`Invalid data source set ID: ${setId}`);
-        }
         let data = this.getData();
         for (let dataSource of data.dataSources) {
-            if (dataSource.spec.id === dsId) {
-                if (dataSource.savedSearches.map((ds) => ds.id).includes(search.id)) {
-                    throw new Error(`Search ID already exists: ${search.id}`);
-                }
-                dataSource.savedSearches.push(search);
+            if (dataSource.spec.id === dataSourceId) {
+                dataSource.savedSearches = dataSource.savedSearches.filter((ds) => ds.id !== search.id).concat([search]);
                 this.setData(data);
                 return;
             }

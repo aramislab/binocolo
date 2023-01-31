@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 
-type CLICommand = RunServerCommand | AddDataSourceCommand | AddDataSourceSetCommand | EditDataSourceCommand;
+type CLICommand = RunServerCommand | AddDataSourceCommand | AddDataSourceSetCommand | EditDataSourceCommand | EditSavedSearchCommand;
 
 type RunServerCommand = {
     type: 'runServer';
@@ -20,6 +20,10 @@ type AddDataSourceSetCommand = {
 
 type EditDataSourceCommand = {
     type: 'editDataSource';
+};
+
+type EditSavedSearchCommand = {
+    type: 'editSavedSearch';
 };
 
 export function parseCommandLineArguments(): CLICommand {
@@ -61,6 +65,15 @@ export function parseCommandLineArguments(): CLICommand {
         .action(() => {
             result = {
                 type: 'editDataSource',
+            };
+        });
+
+    program
+        .command('editSavedSearch')
+        .description('Edit Saved Search')
+        .action(() => {
+            result = {
+                type: 'editSavedSearch',
             };
         });
 

@@ -20,7 +20,7 @@ export type ServiceSpecs = {
 // ---- Local configuration --------------------
 
 export type LocalConfigurationData = {
-    currentDataSourceId: DataSourceId;
+    currentDataSourceId: DataSourceId | null;
     dataSources: {
         spec: DataSourceSpecification<ServiceSpecs>;
         savedSearches: NamedSearch[];
