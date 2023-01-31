@@ -1,7 +1,11 @@
 {
   "name": "@binocolo/cli",
   "version": "0.1.0",
-  "main": "dist/main.js",
+  "files": [
+    "src/**/*",
+    "dist/**/*",
+    "frontend-build/**/*"
+  ],
   "type": "module",
   "exports": {
     "./*": "./dist/*"
@@ -41,6 +45,7 @@
     "fastify": "^4.7.0",
     "http-errors": "^2.0.0",
     "inquirer": "^9.1.4",
+    "open": "^8.4.0",
     "pino": "^8.8.0",
     "pino-pretty": "^9.1.1",
     "ts-node": "^10.9.1",

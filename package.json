@@ -8,6 +8,8 @@
     "clean:dist": "npm run clean:dist --workspaces",
     "build": "tsc --build --verbose",
     "watch": "tsc --build --watch --verbose",
+    "publish": "npm publish --access=public",
+    "publish:dry-run": "npm publish --dry-run --access=public --workspace packages",
     "copy-frontend-bundle": "copyfiles --up 3 packages/cli-frontend/build/**/*.* packages/cli/frontend-build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -13,7 +13,10 @@
       ]
     }
   },
-  "main": "index.js",
+  "files": [
+    "src/**/*",
+    "dist/**/*"
+  ],
   "scripts": {
     "clean:dist": "rimraf dist",
     "check-compilation": "tsc --noEmit",

@@ -13,6 +13,10 @@
       ]
     }
   },
+  "files": [
+    "src/**/*",
+    "dist/**/*"
+  ],
   "scripts": {
     "check-compilation": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1",
