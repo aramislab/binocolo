@@ -1,5 +1,5 @@
 import { ServiceSpecs } from '../types.js';
-import { DataSourceSpecification } from '@binocolo/backend/service.js';
+import { DataSourceSpecification } from '@binocolo/backend/types.js';
 import { validateJson } from '@binocolo/backend/json-validation.js';
 import { SerializedDataSourceSpecifications, SerializedDataSourceSpecificationsSchema } from './types.js';
 

@@ -1,11 +1,16 @@
 import ConfStore from 'conf';
 import { Logger } from '@binocolo/backend/logging';
 import { stat } from 'node:fs/promises';
-import { DataSourceId, DataSourceSpecification, IConfigurationStorage } from '@binocolo/backend/service.js';
-import { DataSourceWithSavedSearches, IDataSourceSpecificationsStorage } from '@binocolo/backend/types.js';
+import { DataSourceId, IConfigurationStorage } from '@binocolo/backend/service.js';
+import {
+    DataSourceWithSavedSearches,
+    IDataSourceSetStorage,
+    DataSourceSpecification,
+    DataSourceSetDescriptor,
+} from '@binocolo/backend/types.js';
 import { CloudwatchS3ConfigStorage } from '@binocolo/aws/aws-s3-config-storage.js';
 import { NamedSearch } from '@binocolo/common/common.js';
-import { ServiceSpecs, LocalDataSourceSetDescriptor, LocalConfigurationData } from '@binocolo/serialization/types.js';
+import { ServiceSpecs, LocalConfigurationData } from '@binocolo/serialization/types.js';
 import { deserializeDataSourceSpecification, serializeDataSourceSpecification } from '@binocolo/serialization/data-source/serialize.js';
 import { deserializeSavedSearch, serializeSavedSearch } from '@binocolo/serialization/saved-search/serialize.js';
 import { serializeLocalConfuration, deserializeLocalConfiguration } from '@binocolo/serialization/local-configuration/serialize.js';
@@ -17,9 +22,7 @@ type LocalConfigurationParams = {
 
 const LOCAL_DATA_SOURCE_SET_ID = 'local';
 
-export class LocalConfiguration
-    implements IDataSourceSpecificationsStorage<DataSourceSpecification<ServiceSpecs>>, IConfigurationStorage<ServiceSpecs>
-{
+export class LocalConfiguration implements IDataSourceSetStorage<ServiceSpecs>, IConfigurationStorage<ServiceSpecs> {
     private store: ConfStore;
     public path: string;
 
@@ -59,13 +62,13 @@ export class LocalConfiguration
         });
     }
 
-    async getDataSourceSetDescriptors(): Promise<LocalDataSourceSetDescriptor[]> {
+    async getDataSourceSetDescriptors(): Promise<DataSourceSetDescriptor<ServiceSpecs>[]> {
         let data = this.getData();
-        let localSet: LocalDataSourceSetDescriptor = { id: LOCAL_DATA_SOURCE_SET_ID, name: 'Local', spec: { type: 'local' } };
+        let localSet: DataSourceSetDescriptor<ServiceSpecs> = { id: LOCAL_DATA_SOURCE_SET_ID, name: 'Local', spec: { type: 'local' } };
         return [localSet].concat(data.dataSourcesSets);
     }
 
-    addDataSourceSet(setDescriptor: LocalDataSourceSetDescriptor): void {
+    addDataSourceSet(setDescriptor: DataSourceSetDescriptor<ServiceSpecs>): void {
         let data = this.getData();
         for (let other of data.dataSourcesSets) {
             if (other.name === setDescriptor.name) {
@@ -76,7 +79,38 @@ export class LocalConfiguration
         this.setData(data);
     }
 
-    async getDataSourceSetStorage(setId: string): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<ServiceSpecs>>> {
+    // async getAllDataSourceSetStorages(): Promise<IDataSourceSetStorage<ServiceSpecs>[]> {
+    //     let sets: IDataSourceSetStorage<ServiceSpecs>[] = [];
+    //     for (let descriptor of await this.getDataSourceSetDescriptors()) {
+    //         const specType = descriptor.spec.type;
+    //         switch (specType) {
+    //             case LOCAL_DATA_SOURCE_SET_ID:
+    //                 sets.push(this);
+    //                 break;
+    //             case 'AWSS3':
+    //                 sets.push(
+    //                     new CloudwatchS3ConfigStorage({
+    //                         region: descriptor.spec.region,
+    //                         bucket: descriptor.spec.bucket,
+    //                         prefix: descriptor.spec.prefix,
+    //                         deserializeDataSourceSpecification,
+    //                         serializeDataSourceSpecification,
+    //                         deserializeSavedSearch,
+    //                         serializeSavedSearch,
+    //                         logger: this.params.logger,
+    //                         verbose: this.params.verbose,
+    //                     })
+    //                 );
+    //                 break;
+    //             default:
+    //                 const exhaustiveCheck: never = specType;
+    //                 throw new Error(`Unhandled descriptor.spec.type: ${exhaustiveCheck}`);
+    //         }
+    //     }
+    //     return sets;
+    // }
+
+    async getDataSourceSetStorage(setId: string): Promise<IDataSourceSetStorage<ServiceSpecs>> {
         for (let descriptor of await this.getDataSourceSetDescriptors()) {
             if (descriptor.id === setId) {
                 const specType = descriptor.spec.type;
@@ -118,6 +152,16 @@ export class LocalConfiguration
         this.setData(data);
     }
 
+    async updateDataSource(dataSourceSpec: DataSourceSpecification<ServiceSpecs>): Promise<void> {
+        let data = this.getData();
+        for (let other of data.dataSources) {
+            if (other.spec.id === dataSourceSpec.id) {
+                other.spec = dataSourceSpec;
+            }
+        }
+        this.setData(data);
+    }
+
     private getData(): LocalConfigurationData {
         const dataName = `config data at ${this.path}`;
         const { localConfiguration, obsolete } = deserializeLocalConfiguration(this.store.get('data'), dataName);
@@ -131,7 +175,7 @@ export class LocalConfiguration
         this.store.set('data', serializeLocalConfuration(data));
     }
 
-    async getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification<ServiceSpecs>>[]> {
+    async getDataSources(): Promise<DataSourceWithSavedSearches<ServiceSpecs>[]> {
         return this.getData().dataSources;
     }
 

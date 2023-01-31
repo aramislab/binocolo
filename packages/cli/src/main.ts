@@ -1,12 +1,12 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { buildLoggerFromPino } from '@binocolo/backend/logging.js';
+import { buildLoggerFromConsole, buildLoggerFromPino } from '@binocolo/backend/logging.js';
 import { Service } from '@binocolo/backend/service.js';
 import { openBrowser } from './open-browser.js';
 import pino from 'pino';
 import { join, resolve } from 'path';
 import { parseCommandLineArguments } from './cli-args.js';
-import { promptForNewDataSourceSetSpecification, promptForNewDataSourceSpecification } from './interaction.js';
+import { editDataSource, promptForNewDataSourceSetSpecification, promptForNewDataSourceSpecification } from './interaction.js';
 import { ServiceSpecs } from '@binocolo/serialization/types.js';
 import { LocalConfiguration } from './local-storage.js';
 import { getDataSourceAdapterFromSpec } from './data-sources.js';
@@ -28,11 +28,12 @@ const pinoLogger = pino({
 const DEFAULT_PORT = 32652;
 
 async function runCli(): Promise<void> {
-    const logger = buildLoggerFromPino(pinoLogger);
+    // const logger = buildLoggerFromPino(pinoLogger);
+    const logger = buildLoggerFromConsole();
 
     const localConfig = new LocalConfiguration({
         logger,
-        verbose: true,
+        // verbose: true,
     });
 
     if (!(await localConfig.exists())) {
@@ -83,6 +84,9 @@ async function runCli(): Promise<void> {
             } catch (err) {
                 console.error(`ERROR: ${err}`);
             }
+            break;
+        case 'editDataSource':
+            await editDataSource(localConfig);
             break;
         default:
             const exhaustiveCheck: never = commandType;

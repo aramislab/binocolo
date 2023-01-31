@@ -1,9 +1,65 @@
 import inquirer from 'inquirer';
-import { LocalDataSourceSetDescriptor, ServiceSpecs } from '@binocolo/serialization/types.js';
-import { DataSourceSpecification } from '@binocolo/backend/service.js';
+import { ServiceSpecs } from '@binocolo/serialization/types.js';
+import { serializeDataSourceSpecification, deserializeDataSourceSpecification } from '@binocolo/serialization/data-source/serialize.js';
+import {
+    DataSourceSetDescriptor,
+    DataSourceSpecification,
+    DataSourceWithSavedSearches,
+    IDataSourceSetStorage,
+} from '@binocolo/backend/types';
+import { LocalConfiguration } from './local-storage';
+
+export async function editDataSource(config: LocalConfiguration) {
+    console.log('Editing data source:');
+    const { dataSourceSetStorage, dataSource } = await promptDataSource(config);
+    const dataSourceJson = JSON.stringify(serializeDataSourceSpecification(dataSource.spec), null, 2);
+    let answers = await inquirer.prompt([
+        {
+            type: 'editor',
+            name: 'dataSource',
+            message: 'Data Source',
+            default: dataSourceJson,
+        },
+    ]);
+    const editedDataSourceJson: string = answers.dataSource;
+    const { dataSource: editedDataSource } = deserializeDataSourceSpecification(JSON.parse(editedDataSourceJson), 'manually edited data');
+    await dataSourceSetStorage.updateDataSource(editedDataSource);
+}
+
+async function promptDataSource(
+    config: LocalConfiguration
+): Promise<{ dataSourceSetStorage: IDataSourceSetStorage<ServiceSpecs>; dataSource: DataSourceWithSavedSearches<ServiceSpecs> }> {
+    const dssDescriptors = await config.getDataSourceSetDescriptors();
+    let answers = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'dataSourceSetId',
+            message: 'Data Source Set',
+            choices: dssDescriptors.map((dssDesc) => ({ name: dssDesc.name, value: dssDesc.id })),
+            prefix: '',
+            suffix: '?',
+        },
+    ]);
+    const dssStorage = await config.getDataSourceSetStorage(answers.dataSourceSetId);
+    const dataSources = await dssStorage.getDataSources();
+    answers = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'dataSource',
+            message: 'Data Source',
+            choices: dataSources.map((ds) => ({ name: ds.spec.name, value: ds })),
+            prefix: '',
+            suffix: '?',
+        },
+    ]);
+    return {
+        dataSourceSetStorage: dssStorage,
+        dataSource: answers.dataSource,
+    };
+}
 
 export async function promptForNewDataSourceSpecification(
-    dataSourceSets: LocalDataSourceSetDescriptor[]
+    dataSourceSets: DataSourceSetDescriptor<ServiceSpecs>[]
 ): Promise<{ spec: DataSourceSpecification<ServiceSpecs>; dataSourceSetId: string }> {
     if (dataSourceSets.length < 1) {
         throw new Error('Must provide at least one data source set name');
@@ -87,7 +143,7 @@ export async function promptForNewDataSourceSpecification(
     };
 }
 
-export async function promptForNewDataSourceSetSpecification(): Promise<LocalDataSourceSetDescriptor> {
+export async function promptForNewDataSourceSetSpecification(): Promise<DataSourceSetDescriptor<ServiceSpecs>> {
     console.log('Creating a new data source Set on AWS S3:');
     let answers = await inquirer.prompt([
         {

@@ -1,7 +1,8 @@
 import { Logger } from '@binocolo/backend/logging';
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { DataSourceWithSavedSearches, IDataSourceSpecificationsStorage } from '@binocolo/backend/types.js';
+import { DataSourceWithSavedSearches, IDataSourceSetStorage } from '@binocolo/backend/types.js';
 import { NamedSearch } from '@binocolo/common/common.js';
+import { DataSourceSpecification, ServiceSpecs } from '@binocolo/backend/types';
 
 type CloudwatchS3ConfigStorageParams<DataSourceSpecification> = {
     region: string;
@@ -25,22 +26,24 @@ export type AWSS3DataSourceSetSpecification = {
 const DATA_SOURCE_SPEC_JSON_FILENAME = 'dataSource.json';
 const SAVED_SEARCHES_DIR_NAME = 'savedSearches';
 
-export class CloudwatchS3ConfigStorage<DataSourceSpecification extends { id: string }>
-    implements IDataSourceSpecificationsStorage<DataSourceSpecification>
-{
+export class CloudwatchS3ConfigStorage<S extends ServiceSpecs> implements IDataSourceSetStorage<S> {
     private client: S3Client;
 
-    constructor(private params: CloudwatchS3ConfigStorageParams<DataSourceSpecification>) {
+    constructor(private params: CloudwatchS3ConfigStorageParams<DataSourceSpecification<S>>) {
         this.client = new S3Client({ region: params.region });
     }
 
-    async addDataSource(dataSourceSpec: DataSourceSpecification): Promise<void> {
+    async addDataSource(dataSourceSpec: DataSourceSpecification<S>): Promise<void> {
         let dataSources = await this.getDataSources();
         for (let other of dataSources) {
             if (other.spec.id === dataSourceSpec.id) {
                 throw new Error(`This data source ID already exists: ${dataSourceSpec.id}`);
             }
         }
+        await this.writeDataSource(`${dataSourceSpec.id}/${DATA_SOURCE_SPEC_JSON_FILENAME}`, dataSourceSpec);
+    }
+
+    async updateDataSource(dataSourceSpec: DataSourceSpecification<S>): Promise<void> {
         await this.writeDataSource(`${dataSourceSpec.id}/${DATA_SOURCE_SPEC_JSON_FILENAME}`, dataSourceSpec);
     }
 
@@ -126,7 +129,7 @@ export class CloudwatchS3ConfigStorage<DataSourceSpecification extends { id: str
         }
     }
 
-    private async writeDataSource(key: string, dataSource: DataSourceSpecification): Promise<void> {
+    private async writeDataSource(key: string, dataSource: DataSourceSpecification<S>): Promise<void> {
         await this.writeJsonObject(key, this.params.serializeDataSourceSpecification(dataSource));
     }
 
@@ -150,7 +153,7 @@ export class CloudwatchS3ConfigStorage<DataSourceSpecification extends { id: str
         );
     }
 
-    private async readDataSourceAtKey(key: string): Promise<DataSourceSpecification> {
+    private async readDataSourceAtKey(key: string): Promise<DataSourceSpecification<S>> {
         const dataSourceData = await this.readJsonObject(key);
         if (!dataSourceData) {
             throw new Error(`JSON object not found at key ${key}`);
@@ -174,8 +177,8 @@ export class CloudwatchS3ConfigStorage<DataSourceSpecification extends { id: str
         return savedSearch;
     }
 
-    async getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification>[]> {
-        let result: DataSourceWithSavedSearches<DataSourceSpecification>[] = [];
+    async getDataSources(): Promise<DataSourceWithSavedSearches<S>[]> {
+        let result: DataSourceWithSavedSearches<S>[] = [];
         const bucketKeys = this.categorizeBucketKeys(await this.listObjects());
         for (let { dataSourceSpecKey, savedSearcheKeys } of bucketKeys) {
             const dataSourceSpec = await this.readDataSourceAtKey(dataSourceSpecKey);

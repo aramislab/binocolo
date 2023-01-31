@@ -1,27 +1,9 @@
 import { Logger as PinoLogger } from 'pino';
 import { Logger } from './logging.js';
-import {
-    PropertyConfiguration,
-    BackendCommand,
-    QueryDataSourceCommand,
-    LogTableConfigurationParams,
-    NamedSearch,
-} from '@binocolo/common/common.js';
-import { QueryDescriptor, IDataSourceAdapter, DataSourceWithSavedSearches } from './types.js';
-import { IDataSourceSpecificationsStorage } from './types.js';
+import { BackendCommand, QueryDataSourceCommand, LogTableConfigurationParams } from '@binocolo/common/common.js';
+import { QueryDescriptor, IDataSourceAdapter, DataSourceWithSavedSearches, ServiceSpecs, DataSourceSetDescriptor } from './types.js';
+import { IDataSourceSetStorage } from './types.js';
 import { IConnectionHandler, INetworkHandler, runHTTPServer, SenderFunction } from './network.js';
-
-type ServiceSpecs = {
-    DataSourceAdapter: any;
-    DataSourceSet: any;
-};
-
-export type DataSourceSpecification<S extends ServiceSpecs> = {
-    id: string;
-    name: string;
-    adapter: S['DataSourceAdapter'];
-    knownProperties: PropertyConfiguration[];
-};
 
 type GetterDataSourceAdapterFromSpec<S extends ServiceSpecs> = (
     spec: S['DataSourceAdapter'],
@@ -40,12 +22,6 @@ type ServiceParams<S extends ServiceSpecs> = {
     staticRootDir: string;
 };
 
-export type DataSourceSetDescriptor<S extends ServiceSpecs> = {
-    id: string;
-    name: string;
-    spec: S['DataSourceSet'];
-};
-
 export type DataSourceId = {
     dataSourceSetId: string;
     dataSourceId: string;
@@ -53,8 +29,8 @@ export type DataSourceId = {
 
 export interface IConfigurationStorage<S extends ServiceSpecs> {
     getDataSourceSetDescriptors(): Promise<DataSourceSetDescriptor<S>[]>;
-    getDataSourceSetStorage(setId: string): Promise<IDataSourceSpecificationsStorage<DataSourceSpecification<S>>>;
-    getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification<S>>[]>;
+    getDataSourceSetStorage(setId: string): Promise<IDataSourceSetStorage<S>>;
+    getDataSources(): Promise<DataSourceWithSavedSearches<S>[]>;
     getCurrentDataSourceId(): Promise<DataSourceId>;
     setCurrentDataSourceId(id: DataSourceId): Promise<void>;
 }
@@ -85,7 +61,7 @@ export class Service<S extends ServiceSpecs> implements INetworkHandler {
 }
 
 type DataSourceAdaptersMap = Map<string, IDataSourceAdapter>;
-type DataSourceSetsMap<S extends ServiceSpecs> = Map<string, IDataSourceSpecificationsStorage<DataSourceSpecification<S>>>;
+type DataSourceSetsMap<S extends ServiceSpecs> = Map<string, IDataSourceSetStorage<S>>;
 
 class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
     private query: QueryDescriptor | null;
@@ -167,7 +143,7 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
         return adapter;
     }
 
-    private getDataSourceSetByDataSourceId(dataSourceId: string): IDataSourceSpecificationsStorage<DataSourceSpecification<S>> {
+    private getDataSourceSetByDataSourceId(dataSourceId: string): IDataSourceSetStorage<S> {
         const setSpecId = dataSourceId.split(':')[0];
         const dataSourceSet = this.dataSourceSetsMap.get(setSpecId);
         if (!dataSourceSet) {

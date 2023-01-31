@@ -9,6 +9,7 @@ import {
     DataSourceConfig,
     DataSourceQuery,
     NamedSearch,
+    PropertyConfiguration,
 } from '@binocolo/common/common.js';
 // import { ElaboratedTimeRange } from '@binocolo/common/time.js';
 import { SenderFunction } from './network.js';
@@ -44,13 +45,32 @@ export interface IDataSourceAdapter {
     defaultQuery: DataSourceConfig['initialQuery'];
 }
 
-export type DataSourceWithSavedSearches<DataSourceSpecification> = {
-    spec: DataSourceSpecification;
+export type DataSourceWithSavedSearches<S extends ServiceSpecs> = {
+    spec: DataSourceSpecification<S>;
     savedSearches: NamedSearch[];
 };
 
-export interface IDataSourceSpecificationsStorage<DataSourceSpecification> {
-    getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification>[]>;
-    addDataSource(dataSourceSpec: DataSourceSpecification): Promise<void>;
+export interface IDataSourceSetStorage<S extends ServiceSpecs> {
+    getDataSources(): Promise<DataSourceWithSavedSearches<S>[]>;
+    addDataSource(dataSourceSpec: DataSourceSpecification<S>): Promise<void>;
+    updateDataSource(dataSourceSpec: DataSourceSpecification<S>): Promise<void>;
     saveSearch(dataSourceId: string, search: NamedSearch): Promise<void>;
 }
+
+export type ServiceSpecs = {
+    DataSourceAdapter: any;
+    DataSourceSet: any;
+};
+
+export type DataSourceSpecification<S extends ServiceSpecs> = {
+    id: string;
+    name: string;
+    adapter: S['DataSourceAdapter'];
+    knownProperties: PropertyConfiguration[];
+};
+
+export type DataSourceSetDescriptor<S extends ServiceSpecs> = {
+    id: string;
+    name: string;
+    spec: S['DataSourceSet'];
+};

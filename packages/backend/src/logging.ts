@@ -15,3 +15,14 @@ export function buildLoggerFromPino(pinoLogger: PinoLogger): Logger {
         },
     };
 }
+
+export function buildLoggerFromConsole(): Logger {
+    return {
+        info(message: string) {
+            console.log(message);
+        },
+        error(message: string, err?: unknown) {
+            console.log(message, err);
+        },
+    };
+}
