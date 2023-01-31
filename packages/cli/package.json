@@ -1,5 +1,6 @@
 {
   "name": "@binocolo/cli",
+  "version": "0.1.0",
   "main": "dist/main.js",
   "type": "module",
   "exports": {
