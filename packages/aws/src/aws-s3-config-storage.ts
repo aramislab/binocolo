@@ -177,7 +177,6 @@ export class CloudwatchS3ConfigStorage<DataSourceSpecification extends { id: str
     async getDataSources(): Promise<DataSourceWithSavedSearches<DataSourceSpecification>[]> {
         let result: DataSourceWithSavedSearches<DataSourceSpecification>[] = [];
         const bucketKeys = this.categorizeBucketKeys(await this.listObjects());
-        console.log('AAA', bucketKeys);
         for (let { dataSourceSpecKey, savedSearcheKeys } of bucketKeys) {
             const dataSourceSpec = await this.readDataSourceAtKey(dataSourceSpecKey);
             let savedSearches: NamedSearch[] = [];

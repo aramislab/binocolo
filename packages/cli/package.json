@@ -1,6 +1,6 @@
 {
   "name": "@binocolo/cli",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "files": [
     "src/**/*",
     "dist/**/*",
@@ -33,6 +33,7 @@
     "@binocolo/aws": "*",
     "@binocolo/backend": "*",
     "@binocolo/common": "*",
+    "@binocolo/serialization": "*",
     "@fastify/static": "^6.6.0",
     "@fastify/type-provider-typebox": "^2.3.0",
     "@fastify/websocket": "^7.1.1",
