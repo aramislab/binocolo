@@ -11,7 +11,9 @@
     "publish": "npm publish --access=public",
     "publish:dry-run": "npm publish --dry-run --access=public --workspace packages",
     "copy-frontend-bundle": "copyfiles --up 3 packages/cli-frontend/build/**/*.* packages/cli/frontend-build",
-    "build-frontend": "npm run build --workspace packages/cli-frontend",
+    "frontend:build": "npm run build --workspace packages/cli-frontend",
+    "frontend:watch": "npm start --workspace packages/cli-frontend",
+    "cli:dev": "npm run server-dev --workspace packages/cli",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
