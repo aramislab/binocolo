@@ -1,6 +1,12 @@
 import { Logger as PinoLogger } from 'pino';
 import { Logger } from './logging.js';
-import { BackendCommand, QueryDataSourceCommand, LogTableConfigurationParams } from '@binocolo/common/common.js';
+import {
+    BackendCommand,
+    QueryDataSourceCommand,
+    LogTableConfigurationParams,
+    SaveSearchCommand,
+    DeleteSearchCommand,
+} from '@binocolo/common/common.js';
 import { QueryDescriptor, IDataSourceAdapter, DataSourceWithSavedSearches, ServiceSpecs, DataSourceSetDescriptor } from './types.js';
 import { IDataSourceSetStorage } from './types.js';
 import { IConnectionHandler, INetworkHandler, runHTTPServer, SenderFunction } from './network.js';
@@ -125,14 +131,27 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
                 this.stopQuery();
                 return;
             case 'saveSearch':
-                const { dataSourceSetId, dataSourceId } = parseDataSourceId(command.dataSourceId);
-                const dataSourceSet = this.getDataSourceSetByDataSourceId(dataSourceSetId);
-                await dataSourceSet.saveSearch(dataSourceId, command.search);
+                await this.saveSearch(command);
+                return;
+            case 'deleteSearch':
+                await this.deleteSearch(command);
                 return;
             default:
                 const exhaustiveCheck: never = command;
                 throw new Error(`Unhandled command.type: ${exhaustiveCheck}`);
         }
+    }
+
+    private async saveSearch(command: SaveSearchCommand): Promise<void> {
+        const { dataSourceSetId, dataSourceId } = parseDataSourceId(command.dataSourceId);
+        const dataSourceSet = this.getDataSourceSetByDataSourceId(dataSourceSetId);
+        await dataSourceSet.saveSearch(dataSourceId, command.search);
+    }
+
+    private async deleteSearch(command: DeleteSearchCommand): Promise<void> {
+        const { dataSourceSetId, dataSourceId } = parseDataSourceId(command.dataSourceId);
+        const dataSourceSet = this.getDataSourceSetByDataSourceId(dataSourceSetId);
+        await dataSourceSet.deleteSearch(dataSourceId, command.searchId);
     }
 
     private getDataSourceById(dataSourceId: string): IDataSourceAdapter {

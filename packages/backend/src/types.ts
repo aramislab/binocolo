@@ -55,6 +55,7 @@ export interface IDataSourceSetStorage<S extends ServiceSpecs> {
     addDataSource(dataSourceSpec: DataSourceSpecification<S>): Promise<void>;
     updateDataSource(dataSourceSpec: DataSourceSpecification<S>): Promise<void>;
     saveSearch(dataSourceId: string, search: NamedSearch): Promise<void>;
+    deleteSearch(dataSourceId: string, searchId: string): Promise<void>;
 }
 
 export type ServiceSpecs = {

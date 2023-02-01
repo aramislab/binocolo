@@ -49,7 +49,11 @@ export function usePopupMenu({ popup, config }: BuildPopupMenuParams): BuildPopu
     const [popupOpen, setPopupOpen] = React.useState<boolean>(false);
     const { x, y, reference, floating, strategy, context } = useFloating({
         open: popupOpen,
-        onOpenChange: setPopupOpen,
+        onOpenChange: (open: boolean) => {
+            if (!open) {
+                setPopupOpen(false);
+            }
+        },
         placement: 'bottom-start',
         middleware: [flip(), shift({ limiter: limitShift({ offset: 5 }) })],
         whileElementsMounted: autoUpdate,

@@ -45,7 +45,13 @@ export type SaveSearchCommand = {
     search: NamedSearch;
 };
 
-export type BackendCommand = QueryDataSourceCommand | StopQueryCommand | SaveSearchCommand;
+export type DeleteSearchCommand = {
+    type: 'deleteSearch';
+    dataSourceId: string;
+    searchId: string;
+};
+
+export type BackendCommand = QueryDataSourceCommand | StopQueryCommand | SaveSearchCommand | DeleteSearchCommand;
 
 export function parseBackendCommand(data: any): BackendCommand {
     // TODO: implement Schema checking

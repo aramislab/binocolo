@@ -1,5 +1,5 @@
 import { Logger } from '@binocolo/backend/logging';
-import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { DataSourceWithSavedSearches, IDataSourceSetStorage } from '@binocolo/backend/types.js';
 import { NamedSearch } from '@binocolo/common/common.js';
 import { DataSourceSpecification, ServiceSpecs } from '@binocolo/backend/types';
@@ -153,6 +153,26 @@ export class CloudwatchS3ConfigStorage<S extends ServiceSpecs> implements IDataS
         );
     }
 
+    private async deleteObject(key: string): Promise<void> {
+        const actualKey = `${this.params.prefix}/${key}`;
+        const uri = `s3://${this.params.bucket}/${actualKey}`;
+        if (this.params.verbose) {
+            this.params.logger.info(`Deleting object at ${uri}`);
+        }
+        await this.client.send(
+            new DeleteObjectsCommand({
+                Bucket: this.params.bucket,
+                Delete: {
+                    Objects: [
+                        {
+                            Key: actualKey,
+                        },
+                    ],
+                },
+            })
+        );
+    }
+
     private async readDataSourceAtKey(key: string): Promise<DataSourceSpecification<S>> {
         const dataSourceData = await this.readJsonObject(key);
         if (!dataSourceData) {
@@ -197,6 +217,11 @@ export class CloudwatchS3ConfigStorage<S extends ServiceSpecs> implements IDataS
     async saveSearch(dataSourceId: string, search: NamedSearch): Promise<void> {
         const key = `${dataSourceId}/${SAVED_SEARCHES_DIR_NAME}/${search.id}.json`;
         await this.writeSavedSearch(key, search);
+    }
+
+    async deleteSearch(dataSourceId: string, searchId: string): Promise<void> {
+        const key = `${dataSourceId}/${SAVED_SEARCHES_DIR_NAME}/${searchId}.json`;
+        await this.deleteObject(key);
     }
 }
 

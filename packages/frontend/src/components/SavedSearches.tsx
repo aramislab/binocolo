@@ -1,64 +1,64 @@
+import React from 'react';
 import { observer } from 'mobx-react-lite';
 import { LogTableConfiguration } from '../logic/models.js';
 import styled from 'styled-components';
 import { TextBlock } from './TextBlock.js';
-import React from 'react';
+import { SERIF_FONT } from '../logic/types.js';
 
 export const SavedSearches = observer(({ config, close }: { config: LogTableConfiguration; close: () => void }) => {
     const [searchName, setSearchName] = React.useState<string>('');
+    const currentSearchTitle = config.getSavedSearchTitle();
     return (
         <SavedSearchesContainerDiv config={config}>
-            {config.savedSearches.map(({ title, id }) => (
-                <TextBlock
-                    key={id}
-                    config={config}
-                    className="button"
-                    theme={config.colorTheme.light}
-                    onClick={() => {
-                        close();
-                        config.selectSavedSearch(id);
-                    }}
-                >
-                    {title}
-                </TextBlock>
-            ))}
-            <div className="save">
-                <input
-                    type="text"
-                    placeholder="Save search…"
-                    value={searchName}
-                    onChange={(evt) => {
-                        setSearchName(evt.target.value);
-                    }}
-                ></input>
-                {searchName.length > 0 && (
+            {/* <SeparatorDiv config={config} /> */}
+            <CommandsBlockDiv>
+                {/* <div className="title">Saved Searches:</div> */}
+                {config.savedSearches.map(({ title, id }) => (
                     <TextBlock
-                        className="saveButton"
+                        key={id}
                         config={config}
+                        className={`button ${id === config.selectedSavedSearchId ? 'selected-search' : ''}`}
                         theme={config.colorTheme.light}
-                        numLines={1}
-                        button
                         onClick={() => {
-                            config.saveSearch(searchName);
+                            close();
+                            config.selectSavedSearchById(id);
                         }}
-                        disabled={!config.isSavedSearchNameValid(searchName)}
                     >
-                        Save
+                        {title}
                     </TextBlock>
-                )}
-            </div>
+                ))}
+            </CommandsBlockDiv>
         </SavedSearchesContainerDiv>
     );
 });
 
+const SeparatorDiv = styled.div<{ readonly config: LogTableConfiguration }>`
+    border-bottom: 1px solid ${(props) => props.config.colorTheme.light.lines};
+`;
+
+const CommandsBlockDiv = styled.div`
+    padding: 5px 0;
+`;
+
 const SavedSearchesContainerDiv = styled.div<{ readonly config: LogTableConfiguration }>`
     color: ${(props) => props.config.colorTheme.light.text};
-    padding: 5px;
     display: flex;
     flex-direction: column;
 
+    .title {
+        margin: 0 0 5px 0;
+        padding: 0;
+        font-family: ${SERIF_FONT};
+        font-size: 12px;
+        font-weight: bold;
+    }
+
     .button {
-        padding: 2px 0;
+        padding: 2px 5px;
+    }
+
+    .selected-search {
+        font-weight: bold;
     }
 
     .save {

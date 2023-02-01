@@ -20,6 +20,7 @@ import {
     ExistsDataSourceFilter,
     DataSourceConfig,
     NamedSearch,
+    SearchSpec,
 } from '@binocolo/common/common.js';
 import { TimeRange } from '@binocolo/common/types';
 import {
@@ -46,6 +47,8 @@ import { ColorTheme, DEFAULT_COLOR_THEME } from './themes.js';
 import { makeFilterId } from './filters.js';
 import { calculatePropertyNodeSize, inspectPayload, makeEmptyPropertyNode, visitPayload } from './inspect_payload.js';
 import { FrequencyStats, mergeFrequencyStats, PropertyValueStatsCalculator } from './value_frequencies.js';
+import cloneDeep from 'clone-deep';
+import deepEqual from 'deep-equal';
 
 const MIN_COLUMN_WIDTH = 50;
 const DEFAULT_COLUMN_WIDTH = 180;
@@ -79,7 +82,6 @@ export type HistogramSeriesData = {
 
 export class LogTableConfiguration {
     private preambleProperties: string[];
-    public shownProperties: JSONFieldSelector[];
     public zoom: number;
     public multiline: boolean;
     public nullVisible: boolean;
@@ -90,7 +92,6 @@ export class LogTableConfiguration {
     public propertiesData: PropertyData[];
 
     private supportedDataSourceFilters: PartialDataSourceFilter[];
-    public dataSourceFilters: DataSourceFilter[];
 
     private entriesStorage: LogEntriesStorage;
     public entriesSelection: LogEntriesSelection;
@@ -120,6 +121,9 @@ export class LogTableConfiguration {
     public dataSourceSets: LogTableConfigurationParams['dataSourceSets'];
 
     public savedSearches: NamedSearch[];
+    public selectedSavedSearchId: string | null;
+    public currentSearch: SearchSpec;
+    public currentSearchOriginal: SearchSpec;
 
     public colorTheme: ColorTheme;
 
@@ -143,10 +147,10 @@ export class LogTableConfiguration {
         this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
 
         this.savedSearches = this.getCurrentDataSource().savedSearches;
+        this.selectedSavedSearchId = null;
 
-        // this.preambleProperties = this.getCurrentDataSource().preambleProperties.map(parseFieldSelectorText);
-        this.shownProperties = this.getCurrentDataSource().initialQuery.search.shownProperties.map(parseFieldSelectorText);
-        this.dataSourceFilters = this.getCurrentDataSource().initialQuery.search.filters;
+        this.currentSearch = this.getCurrentDataSource().initialQuery.search;
+        this.currentSearchOriginal = cloneDeep(this.currentSearch);
         this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
         this.timeFormat = {
             timestampFormat: TIMESTAMP_FORMAT,
@@ -190,8 +194,8 @@ export class LogTableConfiguration {
         this.sendMessage = sendMessage;
 
         makeObservable(this, {
-            // preambleProperties: observable.deep,
-            shownProperties: observable.deep,
+            currentSearch: observable.deep,
+            currentSearchOriginal: observable.deep,
             zoom: observable,
             multiline: observable,
             nullVisible: observable,
@@ -205,12 +209,12 @@ export class LogTableConfiguration {
             elaboratedTimeRange: observable.deep,
             histogram: observable.deep,
             colorTheme: observable,
-            dataSourceFilters: observable,
             entriesSelection: observable,
             histogramBreakdownProperty: observable,
             shownPropertiesSet: observable.deep,
             currentDataSourceId: observable,
             savedSearches: observable,
+            selectedSavedSearchId: observable,
 
             toggleNullVisible: action,
             togglePropertyVisibility: action,
@@ -230,20 +234,44 @@ export class LogTableConfiguration {
             changeDataSource: action,
             selectSavedSearch: action,
             saveSearch: action,
+            deleteSelectedSearch: action,
         });
     }
 
-    public selectSavedSearch(searchId: string): void {
+    public selectSavedSearchById(searchId: string): void {
         for (let search of this.savedSearches) {
             if (search.id === searchId) {
-                this.shownProperties = search.spec.shownProperties.map(parseFieldSelectorText);
-                this.dataSourceFilters = search.spec.filters;
-                this.updatePropertiesMap();
-                this.computePropertiesData();
-                this.computeColumns();
-                this.loadEntriesFromDataSource();
+                this.selectSavedSearch(search);
+                return;
             }
         }
+        this.selectSavedSearch(null);
+    }
+
+    public selectSavedSearch(search: NamedSearch | null): void {
+        this.selectedSavedSearchId = search ? search.id : null;
+        this.currentSearch = search ? search.spec : this.getCurrentDataSource().initialQuery.search;
+        this.currentSearchOriginal = cloneDeep(this.currentSearch);
+        this.updatePropertiesMap();
+        this.computePropertiesData();
+        this.computeColumns();
+        this.loadEntriesFromDataSource();
+    }
+
+    public isSearchChanged(): boolean {
+        return !deepEqual(this.currentSearch, this.currentSearchOriginal);
+    }
+
+    public getSavedSearchTitle(): string | null {
+        if (this.selectedSavedSearchId === null) {
+            return null;
+        }
+        for (let search of this.savedSearches) {
+            if (search.id === this.selectedSavedSearchId) {
+                return search.title;
+            }
+        }
+        return null;
     }
 
     public isSavedSearchNameValid(searchName: string): boolean {
@@ -254,16 +282,44 @@ export class LogTableConfiguration {
         return !this.savedSearches.map((search) => search.id).includes(id);
     }
 
-    public saveSearch(searchName: string): void {
+    private makeNewSearchId(title: string): string {
+        let id = makeId(title);
+        while (true) {
+            let foundAnother: boolean = false;
+            for (let search of this.savedSearches) {
+                if (search.id === id) {
+                    foundAnother = true;
+                    break;
+                }
+            }
+            if (!foundAnother) {
+                return id;
+            } else {
+                id = `${id}-`;
+            }
+        }
+    }
+
+    public saveSearch({ title, asNew }: { title: string; asNew?: boolean }): void {
+        const id = asNew || !this.selectedSavedSearchId ? this.makeNewSearchId(title) : this.selectedSavedSearchId;
         const namedSearch: NamedSearch = {
-            id: makeId(searchName),
-            title: searchName,
-            spec: {
-                shownProperties: this.shownProperties.map(makeStringFromJSONFieldSelector),
-                filters: [...this.dataSourceFilters],
-            },
+            id,
+            title,
+            spec: this.currentSearch,
         };
+        this.savedSearches = this.savedSearches.filter((search) => search.id !== id);
         this.savedSearches.push(namedSearch);
+        this.savedSearches.sort((a, b) => {
+            if (a.title < b.title) {
+                return -1;
+            } else if (a.title > b.title) {
+                return 1;
+            } else {
+                return 0;
+            }
+        });
+        this.currentSearchOriginal = cloneDeep(this.currentSearch);
+        this.selectedSavedSearchId = id;
         this.sendMessage({
             type: 'saveSearch',
             dataSourceId: this.currentDataSourceId,
@@ -271,11 +327,25 @@ export class LogTableConfiguration {
         });
     }
 
+    public deleteSelectedSearch(): void {
+        if (!this.selectedSavedSearchId) {
+            return;
+        }
+        const searchId = this.selectedSavedSearchId;
+        this.savedSearches = this.savedSearches.filter((search) => search.id !== this.selectedSavedSearchId);
+        this.selectSavedSearch(this.savedSearches.length > 0 ? this.savedSearches[0] : null);
+        this.sendMessage({
+            type: 'deleteSearch',
+            dataSourceId: this.currentDataSourceId,
+            searchId,
+        });
+    }
+
     public changeDataSource(dataSourceId: string): void {
         this.currentDataSourceId = dataSourceId;
         this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
-        this.shownProperties = this.getCurrentDataSource().initialQuery.search.shownProperties.map(parseFieldSelectorText);
-        this.dataSourceFilters = this.getCurrentDataSource().initialQuery.search.filters;
+        this.currentSearch = this.getCurrentDataSource().initialQuery.search;
+        this.currentSearchOriginal = cloneDeep(this.currentSearch);
         this.savedSearches = this.getCurrentDataSource().savedSearches;
         this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
         this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
@@ -429,11 +499,11 @@ export class LogTableConfiguration {
             queries: [
                 {
                     type: 'fetchEntries',
-                    filters: this.dataSourceFilters,
+                    filters: this.currentSearch.filters,
                 },
                 {
                     type: 'buildHistogram',
-                    filters: this.dataSourceFilters,
+                    filters: this.currentSearch.filters,
                     histogramBreakdownProperty: this.histogramBreakdownProperty,
                 },
             ],
@@ -510,8 +580,8 @@ export class LogTableConfiguration {
             this.preamblePropertiesSet.add(property);
         }
         this.shownPropertiesSet = new Set();
-        for (let property of this.shownProperties) {
-            this.shownPropertiesSet.add(makeStringFromJSONFieldSelector(property));
+        for (let property of this.currentSearch.shownProperties) {
+            this.shownPropertiesSet.add(property);
         }
     }
 
@@ -522,8 +592,8 @@ export class LogTableConfiguration {
         for (let selector of preambleProperties) {
             properties.push({ selector, tonedDown: true });
         }
-        for (let selector of this.shownProperties) {
-            properties.push({ selector, tonedDown: false });
+        for (let selector of this.currentSearch.shownProperties) {
+            properties.push({ selector: parseFieldSelectorText(selector), tonedDown: false });
         }
         const knownPropertiesMap = this.getKnownPropertiesMap();
         properties.forEach(({ selector, tonedDown }, idx) => {
@@ -570,12 +640,11 @@ export class LogTableConfiguration {
     }
 
     togglePropertyVisibility(selector: JSONFieldSelector): void {
+        const selectorString = makeStringFromJSONFieldSelector(selector);
         if (!this.isPropertyShown(selector)) {
-            this.shownProperties.push(selector);
+            this.currentSearch.shownProperties.push(selectorString);
         } else {
-            this.shownProperties = this.shownProperties.filter(
-                (_selector) => makeStringFromJSONFieldSelector(_selector) !== makeStringFromJSONFieldSelector(selector)
-            );
+            this.currentSearch.shownProperties = this.currentSearch.shownProperties.filter((_selector) => _selector !== selectorString);
         }
         this.updatePropertiesMap();
         this.computePropertiesData();
@@ -590,7 +659,7 @@ export class LogTableConfiguration {
     private computeColumns(): void {
         const preambleProperties = this.preambleProperties.map(parseFieldSelectorText);
         let widths: (number | null)[] = [...FIXED_COLUMNS_WIDTHS];
-        const selectors = preambleProperties.concat(this.shownProperties);
+        const selectors = preambleProperties.concat(this.currentSearch.shownProperties.map(parseFieldSelectorText));
         const knownPropertiesMap = this.getKnownPropertiesMap();
         for (let selector of selectors) {
             const propertyConfig = knownPropertiesMap.get(makeStringFromJSONFieldSelector(selector));
@@ -632,7 +701,7 @@ export class LogTableConfiguration {
     }
 
     addFilter(filter: DataSourceFilter): void {
-        this.dataSourceFilters.push(filter);
+        this.currentSearch.filters.push(filter);
         this.loadEntriesFromDataSource();
     }
 
@@ -643,7 +712,7 @@ export class LogTableConfiguration {
 
     private _removeFilter(filterId: string): void {
         let fromDataSource: boolean = false;
-        this.dataSourceFilters = this.dataSourceFilters.filter((filter) => {
+        this.currentSearch.filters = this.currentSearch.filters.filter((filter) => {
             const match = makeFilterId(filter) === filterId;
             if (match) {
                 fromDataSource = true;
@@ -655,7 +724,7 @@ export class LogTableConfiguration {
     changeOrAddFilter(spec: PartialDataSourceFilter, filter: DataSourceFilter): void {
         const searchResult = this.searchFilter(spec);
         if (searchResult) {
-            const filtersList = this.dataSourceFilters;
+            const filtersList = this.currentSearch.filters;
             filtersList[searchResult.idx] = filter;
             this.loadEntriesFromDataSource();
         } else {
@@ -727,8 +796,8 @@ export class LogTableConfiguration {
     }
 
     searchFilter<Filter extends DataSourceFilter>(spec: PartialDataSourceFilter): { filter: Filter; idx: number } | null {
-        for (let idx = 0; idx < this.dataSourceFilters.length; idx += 1) {
-            const filter = this.dataSourceFilters[idx];
+        for (let idx = 0; idx < this.currentSearch.filters.length; idx += 1) {
+            const filter = this.currentSearch.filters[idx];
             if (filterMatchesSpec(filter, spec)) {
                 return { filter: filter as Filter, idx };
             }
@@ -771,7 +840,11 @@ export class LogTableConfiguration {
         const preambleProperties = this.preambleProperties.map(parseFieldSelectorText);
         return {
             columnStart: FIRST_ATTRIBUTE_COL_NUM + preambleProperties.length,
-            columnEnd: FIRST_ATTRIBUTE_COL_NUM + preambleProperties.length + this.shownProperties.length + (this.fillerColumn ? 1 : 0),
+            columnEnd:
+                FIRST_ATTRIBUTE_COL_NUM +
+                preambleProperties.length +
+                this.currentSearch.shownProperties.length +
+                (this.fillerColumn ? 1 : 0),
         };
     }
 

@@ -238,4 +238,16 @@ export class LocalConfiguration implements IDataSourceSetStorage<ServiceSpecs>, 
         }
         throw new Error(`Invalid data source ID: ${dataSourceId}`);
     }
+
+    async deleteSearch(dataSourceId: string, searchId: string): Promise<void> {
+        let data = this.getData();
+        for (let dataSource of data.dataSources) {
+            if (dataSource.spec.id === dataSourceId) {
+                dataSource.savedSearches = dataSource.savedSearches.filter((ds) => ds.id !== searchId);
+                this.setData(data);
+                return;
+            }
+        }
+        throw new Error(`Invalid data source ID: ${dataSourceId}`);
+    }
 }
