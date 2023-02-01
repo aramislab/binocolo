@@ -1,6 +1,6 @@
 {
   "name": "@binocolo/serialization",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "",
   "type": "module",
   "exports": {
@@ -36,8 +36,7 @@
     "url": "https://github.com/aramislab/binocolo/issues"
   },
   "homepage": "https://github.com/aramislab/binocolo#readme",
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/deep-equal": "^1.0.1",
     "rimraf": "^3.0.2",
