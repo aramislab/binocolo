@@ -46,8 +46,7 @@ export const PropertyHeaderView = observer(
         };
         return (
             <>
-                {!config.histogramBreakdownProperty ||
-                makeStringFromJSONFieldSelector(config.histogramBreakdownProperty) !== selectorText ? (
+                {!config.currentSearch.histogramBreakdownProperty || config.currentSearch.histogramBreakdownProperty !== selectorText ? (
                     <ActionsSectionDiv>
                         <TextBlock
                             config={config}

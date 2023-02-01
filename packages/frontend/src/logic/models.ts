@@ -85,7 +85,6 @@ export class LogTableConfiguration {
     public zoom: number;
     public multiline: boolean;
     public nullVisible: boolean;
-    public histogramBreakdownProperty: JSONFieldSelector | null;
 
     public shownPropertiesSet: Set<string>;
     private preamblePropertiesSet: Set<string>;
@@ -169,7 +168,6 @@ export class LogTableConfiguration {
         this.preamblePropertiesSet = new Set();
         this.shownPropertiesSet = new Set();
         this.propertiesData = [];
-        this.histogramBreakdownProperty = null;
 
         this.fillerColumn = false;
         this.gridTemplateColumns = undefined;
@@ -210,7 +208,6 @@ export class LogTableConfiguration {
             histogram: observable.deep,
             colorTheme: observable,
             entriesSelection: observable,
-            histogramBreakdownProperty: observable,
             shownPropertiesSet: observable.deep,
             currentDataSourceId: observable,
             savedSearches: observable,
@@ -380,7 +377,7 @@ export class LogTableConfiguration {
     }
 
     public setHistogramBreakdownProperty(property: JSONFieldSelector | null): void {
-        this.histogramBreakdownProperty = property;
+        this.currentSearch.histogramBreakdownProperty = property ? makeStringFromJSONFieldSelector(property) : null;
         this.loadEntriesFromDataSource();
     }
 
@@ -504,7 +501,9 @@ export class LogTableConfiguration {
                 {
                     type: 'buildHistogram',
                     filters: this.currentSearch.filters,
-                    histogramBreakdownProperty: this.histogramBreakdownProperty,
+                    histogramBreakdownProperty: this.currentSearch.histogramBreakdownProperty
+                        ? parseFieldSelectorText(this.currentSearch.histogramBreakdownProperty)
+                        : null,
                 },
             ],
         });

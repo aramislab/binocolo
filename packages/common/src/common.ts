@@ -317,4 +317,5 @@ export type NamedSearch = {
 export type SearchSpec = {
     filters: DataSourceFilter[];
     shownProperties: string[];
+    histogramBreakdownProperty: string | null;
 };

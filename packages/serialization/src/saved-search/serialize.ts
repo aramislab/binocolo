@@ -4,7 +4,7 @@ import { NamedSearch } from '@binocolo/common/common.js';
 
 export function serializeSavedSearch(search: NamedSearch): SavedSearchOnDisk {
     return {
-        v: 1,
+        v: 2,
         search,
     };
 }
@@ -14,6 +14,17 @@ export function deserializeSavedSearch(data: any, dataName: string): { savedSear
     const version = dataOnDisk.v;
     switch (version) {
         case 1:
+            return {
+                savedSearch: {
+                    ...dataOnDisk.search,
+                    spec: {
+                        ...dataOnDisk.search.spec,
+                        histogramBreakdownProperty: null,
+                    },
+                },
+                obsolete: true,
+            };
+        case 2:
             return {
                 savedSearch: dataOnDisk.search,
                 obsolete: false,
