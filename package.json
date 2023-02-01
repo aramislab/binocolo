@@ -15,7 +15,8 @@
     "frontend:watch": "npm start --workspace packages/cli-frontend",
     "cli:dev": "npm run server-dev --workspace packages/cli",
     "cli:command": "npm run cli --workspace packages/cli --",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky install"
   },
   "repository": {
     "type": "git",
@@ -37,7 +38,10 @@
     "packages/serialization"
   ],
   "devDependencies": {
+    "@commitlint/cli": "^17.4.2",
+    "@commitlint/config-conventional": "^17.4.2",
     "copyfiles": "^2.4.1",
+    "husky": "^8.0.0",
     "prettier": "^2.8.2",
     "rimraf": "^3.0.2"
   }
