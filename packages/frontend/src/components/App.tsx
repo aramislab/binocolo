@@ -14,6 +14,7 @@ import { MONOSPACE_FONT, SERIF_FONT } from '../logic/types.js';
 import { faBars } from '@fortawesome/free-solid-svg-icons';
 import { SavedSearches } from './SavedSearches.js';
 import { SearchTitle } from './SearchTitle.js';
+import { millify } from 'millify';
 
 const App = observer(({ state }: { state: IApplicationState }) => {
     if (state.terminated) {
@@ -79,10 +80,10 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                     // incomplete={!state.config.resultsComplete}
                 />
             </MainArea>
-            <Section theme={theme}>
+            <SectionDiv theme={theme}>
                 <TextBlock
                     config={config}
-                    style={{ display: 'inline', padding: '3px 10px', borderRight: `1px solid ${theme.lines}` }}
+                    className="button"
                     theme={theme}
                     popup={() => ({
                         title: 'Change Zoom',
@@ -100,7 +101,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                 </TextBlock>
                 <TextBlock
                     config={config}
-                    style={{ display: 'inline', padding: '3px 10px', borderRight: `1px solid ${theme.lines}` }}
+                    className="button"
                     theme={theme}
                     popup={() => ({
                         title: 'Change Timezone',
@@ -119,7 +120,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                 </TextBlock>
                 <TextBlock
                     config={config}
-                    style={{ display: 'inline', padding: '3px 10px', borderRight: `1px solid ${theme.lines}` }}
+                    className="button"
                     theme={theme}
                     onClick={() => {
                         config.toggleMultiline();
@@ -129,7 +130,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                 </TextBlock>
                 <TextBlock
                     config={config}
-                    style={{ display: 'inline', padding: '3px 10px', borderRight: `1px solid ${theme.lines}` }}
+                    className="button"
                     theme={theme}
                     onClick={() => {
                         config.toggleNullVisible();
@@ -137,7 +138,25 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                 >
                     {config.nullVisible ? 'Null Visible' : 'Null Hidden'}
                 </TextBlock>
-            </Section>
+                <div className="right">
+                    <TextBlock config={config} className="button" theme={theme}>
+                        {config.loading ? (
+                            'Loading…'
+                        ) : (
+                            <>
+                                {config.entriesSelection.entries.length} lines:{' '}
+                                {!config.dataBundleStats
+                                    ? null
+                                    : config.dataBundleStats.recordsMatched === config.dataBundleStats.numResults
+                                    ? 'Complete'
+                                    : `${Math.round(
+                                          (config.dataBundleStats.numResults / config.dataBundleStats.recordsMatched) * 100
+                                      )}% of ${millify(config.dataBundleStats.recordsMatched)}`}
+                            </>
+                        )}
+                    </TextBlock>
+                </div>
+            </SectionDiv>
             <LogEntriesTable config={state.config} style={{ flexGrow: 1 }} />
         </AppDiv>
     );
@@ -241,11 +260,20 @@ const PageHeader = styled.div<SectionParams>`
     margin-bottom: 5px;
 `;
 
-const Section = styled.div<SectionParams>`
-    border: 1px solid ${(props) => props.theme.lines};
+const SectionDiv = styled.div<SectionParams>`
     display: flex;
-    justify-content: center;
-    width: max-content;
+
+    .button {
+        display: inline;
+        padding: 3px 10px;
+        border: 1px solid ${(props) => props.theme.lines};
+    }
+
+    .right {
+        display: flex;
+        flex-grow: 1;
+        justify-content: end;
+    }
 `;
 
 const zoomToText = (value: number) => `${Math.round(value * 100)}%`;

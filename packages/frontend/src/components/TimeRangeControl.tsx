@@ -10,7 +10,6 @@ import { RegionColorTheme } from '../logic/themes.js';
 import { usePopupMenu } from './PopupMenu.js';
 import { DataSourceConfiguration } from './DataSourceConfiguration.js';
 import { MONOSPACE_FONT, REFERENCE_TEXT_SIZE } from '../logic/types.js';
-import { millify } from 'millify';
 import { FieldsPicker } from './FieldsPicker.js';
 import { DataSourcePicker } from './DataSourcePicker.js';
 
@@ -109,18 +108,9 @@ export const TimeRangeControl = observer(({ config }: { config: LogTableConfigur
                 >
                     Zoom Out <FontAwesomeIcon icon={faMagnifyingGlass} />
                 </TextBlock>
-                <div className="result-stats">
-                    {!config.dataBundleStats
-                        ? null
-                        : config.dataBundleStats.recordsMatched === config.dataBundleStats.numResults
-                        ? 'Results complete'
-                        : `Results: ${Math.round(
-                              (config.dataBundleStats.numResults / config.dataBundleStats.recordsMatched) * 100
-                          )}% of ${millify(config.dataBundleStats.recordsMatched)}`}
-                </div>
                 <TextBlock
                     config={config}
-                    style={{ padding: '3px 10px', width: 80 }}
+                    style={{ padding: '3px 10px', width: 80, marginLeft: 10 }}
                     theme={theme}
                     button
                     onClick={() => {

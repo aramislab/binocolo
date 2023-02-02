@@ -175,9 +175,6 @@ type HeaderParams = {
 const HeaderRow = observer(({ config }: HeaderParams) => {
     return (
         <>
-            <TextBlock className="RowNumberCell" config={config} numLines={1} theme={config.colorTheme.dark}>
-                <b>{config.entriesSelection.entries.length}</b>
-            </TextBlock>
             {config.propertiesData.map(({ selector, name, column }) => (
                 <TextBlock
                     key={makeStringFromJSONFieldSelector(selector)}
