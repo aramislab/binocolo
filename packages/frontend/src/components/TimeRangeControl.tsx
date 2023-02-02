@@ -4,14 +4,10 @@ import { observer } from 'mobx-react-lite';
 import { TextBlock } from './TextBlock.js';
 import { durationToText } from '@binocolo/common/time.js';
 import styled from 'styled-components';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 import { RegionColorTheme } from '../logic/themes.js';
 import { usePopupMenu } from './PopupMenu.js';
 import { DataSourceConfiguration } from './DataSourceConfiguration.js';
 import { MONOSPACE_FONT, REFERENCE_TEXT_SIZE } from '../logic/types.js';
-import { FieldsPicker } from './FieldsPicker.js';
-import { DataSourcePicker } from './DataSourcePicker.js';
 
 export const TimeRangeControl = observer(({ config }: { config: LogTableConfiguration }) => {
     const { startText, endText, bucketSize } = config.getTimeRangeData();
@@ -31,38 +27,29 @@ export const TimeRangeControl = observer(({ config }: { config: LogTableConfigur
         config,
     });
 
+    const tzInfo = config.getTimezoneInfo();
+
     return (
         <>
-            <TimeRangeContainer theme={theme}>
+            <TimeRangeContainerDiv theme={theme}>
                 <TextBlock
                     config={config}
-                    style={{
-                        padding: '3px 10px',
-                        // width: 200,
-                        textAlign: 'left',
-                    }}
+                    className="tz-picker"
                     theme={theme}
-                    popup={({ close }) => ({
-                        title: 'Data Sources',
-                        component: <DataSourcePicker config={config} close={close} />,
+                    popup={() => ({
+                        title: 'Change Timezone',
+                        value: tzInfo.description,
+                        commands: config.timezones.map((tz) => ({
+                            title: tz.description,
+                            icon: tz.id,
+                            onClick({ close }) {
+                                close();
+                                config.setTimezoneId(tz.id);
+                            },
+                        })),
                     })}
                 >
-                    {config.getDataSourceName()}
-                </TextBlock>
-                <TextBlock
-                    config={config}
-                    style={{
-                        padding: '3px 10px',
-                        // width: 200,
-                        textAlign: 'left',
-                    }}
-                    theme={theme}
-                    popup={({ close }) => ({
-                        title: 'Fields',
-                        component: <FieldsPicker config={config} close={close} />,
-                    })}
-                >
-                    Fields
+                    {tzInfo.id}
                 </TextBlock>
                 <div className="time-range" ref={_popupReference} {..._referenceProps} onClick={_onClick}>
                     <TextBlock config={config} style={{ display: 'inline', padding: 3 }} theme={theme} selectable>
@@ -78,52 +65,11 @@ export const TimeRangeControl = observer(({ config }: { config: LogTableConfigur
                     <TextBlock config={config} style={{ display: 'inline-block', padding: 3 }} theme={theme} selectable>
                         {endText}
                     </TextBlock>
-                    <BucketContainerDiv>
-                        <TextBlock
-                            config={config}
-                            style={{
-                                display: 'inline-block',
-                                padding: '1px 3px',
-                                borderRadius: 3,
-                                marginLeft: 5,
-                                border: `1px dashed ${theme.text}`,
-                            }}
-                            theme={theme}
-                        >
-                            {bucketSize}
-                        </TextBlock>
-                    </BucketContainerDiv>
                 </div>
-                <TextBlock
-                    config={config}
-                    style={{ padding: 3 }}
-                    theme={theme}
-                    onClick={() => {
-                        if (config.timeRangeEdited()) {
-                            config.restoreTimeRange();
-                        }
-                    }}
-                    button
-                    disabled={!config.timeRangeEdited()}
-                >
-                    Zoom Out <FontAwesomeIcon icon={faMagnifyingGlass} />
+                <TextBlock config={config} className="bucket-size" theme={theme}>
+                    {bucketSize}
                 </TextBlock>
-                <TextBlock
-                    config={config}
-                    style={{ padding: '3px 10px', width: 80, marginLeft: 10 }}
-                    theme={theme}
-                    button
-                    onClick={() => {
-                        if (config.loading) {
-                            config.stopQuery();
-                        } else {
-                            config.loadEntriesFromDataSource();
-                        }
-                    }}
-                >
-                    {config.loading ? 'Stop Query' : 'Reload'}
-                </TextBlock>
-            </TimeRangeContainer>
+            </TimeRangeContainerDiv>
             {popupComponent}
         </>
     );
@@ -133,18 +79,37 @@ interface TimeRangeContainerParams {
     readonly theme: RegionColorTheme;
 }
 
-const TimeRangeContainer = styled.div<TimeRangeContainerParams>`
+const TimeRangeContainerDiv = styled.div<TimeRangeContainerParams>`
     display: flex;
     justify-content: center;
+    align-items: center;
     width: max-content;
-    padding: 5px;
-    //border-bottom: 1px solid ${(props) => props.theme.text};
     background-color: ${(props) => props.theme.lightBackground};
+    border-radius: 3px;
+
+    > .tz-picker {
+        padding: 3px 10px;
+        text-align: left;
+        border-right: 1px solid ${(props) => props.theme.lines};
+    }
 
     > .time-range {
         display: flex;
         flex-direction: row;
         align-items: center;
+        padding-left: 5px;
+        padding-right: 10px;
+        cursor: pointer;
+
+        :hover {
+            background-color: ${(props) => props.theme.highlight};
+        }
+    }
+
+    .bucket-size {
+        padding: 0 10px 0 10px;
+        min-height: 24px;
+        border-left: 1px solid ${(props) => props.theme.lines};
     }
 
     > .result-stats {
@@ -156,18 +121,3 @@ const TimeRangeContainer = styled.div<TimeRangeContainerParams>`
         align-items: center;
     }
 `;
-
-const BucketContainerDiv = styled.div`
-    width: 90px;
-`;
-
-// popup={() => ({
-//     title: 'Choose Time Range',
-//     commands: config.timeRanges.map(({ durationInSec, description }) => ({
-//         title: description,
-//         onClick({ close }) {
-//             config.changeTimeRangeByDuration(durationInSec);
-//             close();
-//         },
-//     })),
-// })}

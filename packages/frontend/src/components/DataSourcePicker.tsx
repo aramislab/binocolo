@@ -48,6 +48,8 @@ const DataSourcePickerContainerDiv = styled.div<{ readonly config: LogTableConfi
     .title {
         font-weight: bold;
         font-style: italic;
+        text-decoration: underline;
+        margin-bottom: 5px;
     }
 
     .button {

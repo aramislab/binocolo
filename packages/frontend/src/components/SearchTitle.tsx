@@ -142,7 +142,7 @@ const SearchTitleDiv = styled.div<{
         display: flex;
         font-family: ${SERIF_FONT};
         align-items: center;
-        font-size: 14px;
+        font-size: 16px;
         margin-top: 2px;
         height: 20px;
         border: none;

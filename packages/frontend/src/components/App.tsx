@@ -15,6 +15,9 @@ import { faBars } from '@fortawesome/free-solid-svg-icons';
 import { SavedSearches } from './SavedSearches.js';
 import { SearchTitle } from './SearchTitle.js';
 import { millify } from 'millify';
+import { DataSourcePicker } from './DataSourcePicker.js';
+import { FieldsPicker } from './FieldsPicker.js';
+import { faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 
 const App = observer(({ state }: { state: IApplicationState }) => {
     if (state.terminated) {
@@ -28,14 +31,71 @@ const App = observer(({ state }: { state: IApplicationState }) => {
     }
     const theme = state.config.colorTheme.light;
     const config = state.config;
-    const tzInfo = config.getTimezoneInfo();
 
     return (
         <AppDiv theme={theme}>
-            <MainArea>
-                <PageHeader theme={theme}>
-                    <TimeRangeControl config={state.config} />
-                </PageHeader>
+            <MainAreaDiv>
+                <SectionDiv>
+                    <TitleSectionDiv theme={config.colorTheme.light}>
+                        <TextBlock
+                            config={config}
+                            className="data-source"
+                            theme={theme}
+                            popup={({ close }) => ({
+                                title: 'Data Sources',
+                                component: <DataSourcePicker config={config} close={close} />,
+                            })}
+                        >
+                            {config.getDataSourceName()}
+                        </TextBlock>
+                        <div className="field-button-container">
+                            <TextBlock
+                                config={config}
+                                className="field-button"
+                                theme={theme}
+                                // button
+                                popup={({ close }) => ({
+                                    title: 'Fields',
+                                    component: <FieldsPicker config={config} close={close} />,
+                                })}
+                            >
+                                Fields
+                            </TextBlock>
+                        </div>
+                    </TitleSectionDiv>
+                    <div className="right">
+                        <TimeRangeControl config={state.config} />
+                        <TextBlock
+                            config={config}
+                            style={{ padding: 3, marginLeft: 10 }}
+                            theme={theme}
+                            onClick={() => {
+                                if (config.timeRangeEdited()) {
+                                    config.restoreTimeRange();
+                                }
+                            }}
+                            button
+                            disabled={!config.timeRangeEdited()}
+                        >
+                            Zoom Out <FontAwesomeIcon icon={faMagnifyingGlass} />
+                        </TextBlock>
+                        <TextBlock
+                            config={config}
+                            style={{ padding: '3px 10px', width: 80, marginLeft: 10, justifyContent: 'center' }}
+                            theme={theme}
+                            button
+                            onClick={() => {
+                                if (config.loading) {
+                                    config.stopQuery();
+                                } else {
+                                    config.loadEntriesFromDataSource();
+                                }
+                            }}
+                        >
+                            {config.loading ? 'Stop Query' : 'Reload'}
+                        </TextBlock>
+                    </div>
+                </SectionDiv>
                 <SavedSearchSection>
                     <TextBlock
                         config={config}
@@ -79,11 +139,11 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                     histogramBreakdownProperty={state.config.currentSearch.histogramBreakdownProperty}
                     // incomplete={!state.config.resultsComplete}
                 />
-            </MainArea>
+            </MainAreaDiv>
             <SectionDiv theme={theme}>
-                <TextBlock
+                {/* <TextBlock
                     config={config}
-                    className="button"
+                    className="section-button"
                     theme={theme}
                     popup={() => ({
                         title: 'Change Zoom',
@@ -98,62 +158,44 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                     })}
                 >
                     Zoom: {zoomToText(config.zoom)}
-                </TextBlock>
-                <TextBlock
-                    config={config}
-                    className="button"
-                    theme={theme}
-                    popup={() => ({
-                        title: 'Change Timezone',
-                        value: tzInfo.description,
-                        commands: config.timezones.map((tz) => ({
-                            title: tz.description,
-                            icon: tz.id,
-                            onClick({ close }) {
-                                close();
-                                config.setTimezoneId(tz.id);
-                            },
-                        })),
-                    })}
-                >
-                    {tzInfo.id}
-                </TextBlock>
-                <TextBlock
-                    config={config}
-                    className="button"
-                    theme={theme}
-                    onClick={() => {
-                        config.toggleMultiline();
-                    }}
-                >
-                    {config.multiline ? 'Multiline' : 'Single line'}
-                </TextBlock>
-                <TextBlock
-                    config={config}
-                    className="button"
-                    theme={theme}
-                    onClick={() => {
-                        config.toggleNullVisible();
-                    }}
-                >
-                    {config.nullVisible ? 'Null Visible' : 'Null Hidden'}
+                </TextBlock> */}
+
+                <TextBlock config={config} className="section-button" theme={theme}>
+                    {config.loading ? (
+                        'Loading…'
+                    ) : (
+                        <>
+                            {config.entriesSelection.entries.length} lines:{' '}
+                            {!config.dataBundleStats
+                                ? null
+                                : config.dataBundleStats.recordsMatched === config.dataBundleStats.numResults
+                                ? 'Complete'
+                                : `${Math.round(
+                                      (config.dataBundleStats.numResults / config.dataBundleStats.recordsMatched) * 100
+                                  )}% of ${millify(config.dataBundleStats.recordsMatched)}`}
+                        </>
+                    )}
                 </TextBlock>
                 <div className="right">
-                    <TextBlock config={config} className="button" theme={theme}>
-                        {config.loading ? (
-                            'Loading…'
-                        ) : (
-                            <>
-                                {config.entriesSelection.entries.length} lines:{' '}
-                                {!config.dataBundleStats
-                                    ? null
-                                    : config.dataBundleStats.recordsMatched === config.dataBundleStats.numResults
-                                    ? 'Complete'
-                                    : `${Math.round(
-                                          (config.dataBundleStats.numResults / config.dataBundleStats.recordsMatched) * 100
-                                      )}% of ${millify(config.dataBundleStats.recordsMatched)}`}
-                            </>
-                        )}
+                    <TextBlock
+                        config={config}
+                        className="section-button"
+                        theme={theme}
+                        onClick={() => {
+                            config.toggleMultiline();
+                        }}
+                    >
+                        {config.multiline ? 'Multiline' : 'Single line'}
+                    </TextBlock>
+                    <TextBlock
+                        config={config}
+                        className="section-button"
+                        theme={theme}
+                        onClick={() => {
+                            config.toggleNullVisible();
+                        }}
+                    >
+                        {config.nullVisible ? 'Null Visible' : 'Null Hidden'}
                     </TextBlock>
                 </div>
             </SectionDiv>
@@ -162,10 +204,31 @@ const App = observer(({ state }: { state: IApplicationState }) => {
     );
 });
 
+const TitleSectionDiv = styled.div<SectionParams>`
+    display: flex;
+    .data-source {
+        font-family: ${SERIF_FONT};
+        font-weight: bold;
+        font-size: 18px;
+        padding: 2px 0px;
+        margin-right: 40px;
+    }
+    .field-button-container {
+        height: 24px;
+        background-color: ${(props) => props.theme.lightBackground};
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        .field-button {
+            padding: 4px 10px;
+        }
+    }
+`;
+
 const SavedSearchSection = styled.div`
     display: flex;
     flex-direction: row;
-    margin: 0;
+    margin: 10px 0 0 0;
 
     .savedSearchesButton {
         margin-top: 2px;
@@ -179,7 +242,7 @@ const SavedSearchSection = styled.div`
     }
 `;
 
-const MainArea = styled.div`
+const MainAreaDiv = styled.div`
     padding: 20px 20px 10px 20px;
     display: flex;
     flex-direction: column;
@@ -250,20 +313,10 @@ interface SectionParams {
     readonly theme: RegionColorTheme;
 }
 
-const PageHeader = styled.div<SectionParams>`
-    background-color: ${(props) => props.theme.lightBackground};
-    border: 1px solid ${(props) => props.theme.lines};
-    display: flex;
-    justify-content: start;
-    width: max-content;
-    align-self: start;
-    margin-bottom: 5px;
-`;
-
 const SectionDiv = styled.div<SectionParams>`
     display: flex;
 
-    .button {
+    .section-button {
         display: inline;
         padding: 3px 10px;
         border: 1px solid ${(props) => props.theme.lines};
@@ -273,6 +326,7 @@ const SectionDiv = styled.div<SectionParams>`
         display: flex;
         flex-grow: 1;
         justify-content: end;
+        align-items: center;
     }
 `;
 
