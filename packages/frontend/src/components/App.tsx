@@ -69,11 +69,13 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                     ))}
                 </FiltersSection>
                 <EventsChart
-                    colorTheme={state.config.colorTheme}
+                    className="chart"
+                    config={state.config}
                     histogramData={state.config.buildHistogramData()}
                     onChangeTimeRange={(timeRange) => state.config && state.config.changeTimeRange(timeRange)}
                     zoom={state.config.zoom}
                     loading={state.config.loading}
+                    histogramBreakdownProperty={state.config.currentSearch.histogramBreakdownProperty}
                     // incomplete={!state.config.resultsComplete}
                 />
             </MainArea>
@@ -162,6 +164,10 @@ const MainArea = styled.div`
     padding: 20px 20px 10px 20px;
     display: flex;
     flex-direction: column;
+
+    .chart {
+        flex-grow: 1;
+    }
 `;
 
 const AppDiv = styled.div<SectionParams>`
@@ -190,7 +196,7 @@ const FiltersSection = styled.div<{ readonly theme: RegionColorTheme; readonly c
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    margin: 5px 0 10px 0;
+    margin: 0 0 10px 0;
 
     > .filter {
         font-family: ${MONOSPACE_FONT};

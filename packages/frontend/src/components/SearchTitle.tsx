@@ -63,6 +63,9 @@ export const SearchTitle = observer(({ config, className }: { config: LogTableCo
                 className="input"
                 type="text"
                 value={editing ? title || '' : title || 'Unnamed Search'}
+                onKeyDown={(evt) => {
+                    evt.stopPropagation();
+                }}
                 onChange={(evt) => {
                     setTitle(evt.target.value);
                 }}
