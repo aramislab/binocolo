@@ -6,9 +6,9 @@ import { serializeSavedSearch, deserializeSavedSearch } from '../saved-search/se
 
 export function serializeLocalConfuration(data: LocalConfigurationData): SerializedLocalConfigurationData {
     const serializedLocalConfiguration: SerializedLocalConfigurationData = {
-        v: 1,
+        v: 2,
         state: {
-            currentDataSourceId: data.currentDataSourceId,
+            currentUIState: data.currentUIState,
         },
         dataSources: data.dataSources.map((dataSource) => ({
             spec: serializeDataSourceSpecification(dataSource.spec),
@@ -28,40 +28,53 @@ export function deserializeLocalConfiguration(
         SerializedLocalConfigurationDataSchema,
         `local configuration in ${dataName}`
     );
+    let dataSourcesObsolete: boolean = false;
+    const dataSources: LocalConfigurationData['dataSources'] = dataOnDisk.dataSources.map((ds, idx) => {
+        const { dataSource, obsolete } = deserializeDataSourceSpecification(ds.spec, `data source in ${dataName} at position ${idx}`);
+        if (obsolete) {
+            dataSourcesObsolete = true;
+        }
+        const savedSearches: LocalConfigurationData['dataSources'][number]['savedSearches'] = ds.savedSearches.map((ss, idxSS) => {
+            const { savedSearch, obsolete } = deserializeSavedSearch(ss, `saved search in ${dataName} at position ${idx}, ${idxSS}`);
+            if (obsolete) {
+                dataSourcesObsolete = true;
+            }
+            return savedSearch;
+        });
+        return {
+            spec: dataSource,
+            savedSearches,
+        };
+    });
+
     const version = dataOnDisk.v;
     switch (version) {
         case 1:
-            let localConfigurationObsolete = false;
-            const dataSources: LocalConfigurationData['dataSources'] = dataOnDisk.dataSources.map((ds, idx) => {
-                const { dataSource, obsolete } = deserializeDataSourceSpecification(
-                    ds.spec,
-                    `data source in ${dataName} at position ${idx}`
-                );
-                if (obsolete) {
-                    localConfigurationObsolete = true;
-                }
-                const savedSearches: LocalConfigurationData['dataSources'][number]['savedSearches'] = ds.savedSearches.map((ss, idxSS) => {
-                    const { savedSearch, obsolete } = deserializeSavedSearch(
-                        ss,
-                        `saved search in ${dataName} at position ${idx}, ${idxSS}`
-                    );
-                    if (obsolete) {
-                        localConfigurationObsolete = true;
-                    }
-                    return savedSearch;
-                });
-                return {
-                    spec: dataSource,
-                    savedSearches,
-                };
-            });
             return {
                 localConfiguration: {
-                    currentDataSourceId: dataOnDisk.state.currentDataSourceId,
+                    currentUIState: dataOnDisk.state.currentSavedSearchId
+                        ? {
+                              type: 'savedSearchSelected',
+                              dataSourceId: `${dataOnDisk.state.currentDataSourceId?.dataSourceSetId}:${dataOnDisk.state.currentDataSourceId?.dataSourceId}`,
+                              savedSearchId: dataOnDisk.state.currentSavedSearchId,
+                          }
+                        : {
+                              type: 'pristineDataSource',
+                              dataSourceId: `${dataOnDisk.state.currentDataSourceId?.dataSourceSetId}:${dataOnDisk.state.currentDataSourceId?.dataSourceId}`,
+                          },
                     dataSources,
                     dataSourcesSets: data.dataSourcesSets,
                 },
-                obsolete: localConfigurationObsolete,
+                obsolete: true,
+            };
+        case 2:
+            return {
+                localConfiguration: {
+                    currentUIState: dataOnDisk.state.currentUIState,
+                    dataSources,
+                    dataSourcesSets: data.dataSourcesSets,
+                },
+                obsolete: dataSourcesObsolete,
             };
         default:
             const exhaustiveCheck: never = version;

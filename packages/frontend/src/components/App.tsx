@@ -32,10 +32,12 @@ const App = observer(({ state }: { state: IApplicationState }) => {
     const theme = state.config.colorTheme.light;
     const config = state.config;
 
+    const dashboardShown = config.uiState.type === 'searchesDashboard';
+
     return (
         <AppDiv theme={theme}>
-            <MainAreaDiv dashboard={config.allSearchesDashboardShown}>
-                <SectionDiv style={{ marginBottom: config.allSearchesDashboardShown ? 20 : undefined }}>
+            <MainAreaDiv dashboard={dashboardShown}>
+                <SectionDiv style={{ marginBottom: dashboardShown ? 20 : undefined }}>
                     <TitleSectionDiv theme={config.colorTheme.light}>
                         <TextBlock
                             config={config}
@@ -96,7 +98,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                         </TextBlock>
                     </div>
                 </SectionDiv>
-                {!config.allSearchesDashboardShown && (
+                {!dashboardShown && (
                     <SavedSearchSection>
                         <TextBlock
                             config={config}
@@ -113,27 +115,28 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                         <SearchTitle config={config} className="title" />
                     </SavedSearchSection>
                 )}
-                {!config.allSearchesDashboardShown && (
+                {!dashboardShown && (
                     <FiltersSection theme={theme} config={config}>
-                        {config.currentSearch.filters.map((filter) => (
-                            <div key={makeFilterId(filter)} className="filter dataSourceFilter">
-                                <div className="filter-text">{makeFilterDescription(filter)}</div>
-                                <TextBlock
-                                    config={config}
-                                    className="button"
-                                    theme={theme}
-                                    button
-                                    onClick={() => {
-                                        config.removeFilter(makeFilterId(filter));
-                                    }}
-                                >
-                                    <FontAwesomeIcon icon={faXmark} size={'1x'} />
-                                </TextBlock>
-                            </div>
-                        ))}
+                        {config.currentSearch &&
+                            config.currentSearch.filters.map((filter) => (
+                                <div key={makeFilterId(filter)} className="filter dataSourceFilter">
+                                    <div className="filter-text">{makeFilterDescription(filter)}</div>
+                                    <TextBlock
+                                        config={config}
+                                        className="button"
+                                        theme={theme}
+                                        button
+                                        onClick={() => {
+                                            config.removeFilter(makeFilterId(filter));
+                                        }}
+                                    >
+                                        <FontAwesomeIcon icon={faXmark} size={'1x'} />
+                                    </TextBlock>
+                                </div>
+                            ))}
                     </FiltersSection>
                 )}
-                {config.allSearchesDashboardShown ? (
+                {dashboardShown ? (
                     <div className="charts-area-container">
                         <div className="charts-area">
                             {config.savedSearches.map((search) => (
@@ -169,13 +172,13 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                         histogramData={config.buildHistogramData(null)}
                         onChangeTimeRange={(timeRange) => config && config.changeTimeRange(timeRange)}
                         zoom={config.zoom}
-                        histogramBreakdownProperty={config.currentSearch.histogramBreakdownProperty}
+                        histogramBreakdownProperty={config.currentSearch ? config.currentSearch.histogramBreakdownProperty : null}
                         dashboard={false}
                         // incomplete={!config.resultsComplete}
                     />
                 )}
             </MainAreaDiv>
-            {!config.allSearchesDashboardShown && (
+            {!dashboardShown && (
                 <>
                     <SectionDiv theme={theme}>
                         {/* <TextBlock

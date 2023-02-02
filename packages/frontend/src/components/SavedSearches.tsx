@@ -34,7 +34,9 @@ export const SavedSearches = observer(({ config, close }: { config: LogTableConf
                     <TextBlock
                         key={id}
                         config={config}
-                        className={`button ${id === config.selectedSavedSearchId ? 'selected-search' : ''}`}
+                        className={`button ${
+                            config.uiState.type === 'savedSearchSelected' && id === config.uiState.savedSearchId ? 'selected-search' : ''
+                        }`}
                         theme={config.colorTheme.light}
                         onClick={() => {
                             close();

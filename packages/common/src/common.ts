@@ -52,7 +52,12 @@ export type DeleteSearchCommand = {
     searchId: string;
 };
 
-export type BackendCommand = QueryDataSourceCommand | StopQueryCommand | SaveSearchCommand | DeleteSearchCommand;
+export type SaveUIStateCommand = {
+    type: 'saveUIState';
+    uiState: UIState;
+};
+
+export type BackendCommand = QueryDataSourceCommand | StopQueryCommand | SaveSearchCommand | DeleteSearchCommand | SaveUIStateCommand;
 
 export function parseBackendCommand(data: any): BackendCommand {
     // TODO: implement Schema checking
@@ -182,6 +187,27 @@ export function parseFieldSelectorText(text: string): JSONFieldSelector {
     return result;
 }
 
+// ---- UI State ------------------------------------
+
+export type UIState = PristineDataSourceUIState | SavedSearchSelectedUIState | SearchesDashboardUIState;
+
+export type PristineDataSourceUIState = {
+    type: 'pristineDataSource';
+    dataSourceId: string;
+    // searchSpec: SearchSpec;
+};
+
+export type SavedSearchSelectedUIState = {
+    type: 'savedSearchSelected';
+    dataSourceId: string;
+    savedSearchId: string;
+};
+
+export type SearchesDashboardUIState = {
+    type: 'searchesDashboard';
+    dataSourceId: string;
+};
+
 // ---- Configuration ------------------------------------
 
 export type LogTableConfigurationParams = {
@@ -190,7 +216,7 @@ export type LogTableConfigurationParams = {
         name: string;
         dataSources: DataSourceConfig[];
     }[];
-    initialDataSourceId: string;
+    initialUIState: UIState;
     preambleProperties: string[];
     timezones: {
         timezones: TimezoneConfig[];

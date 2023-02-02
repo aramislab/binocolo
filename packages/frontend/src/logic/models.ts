@@ -22,6 +22,7 @@ import {
     NamedSearch,
     SearchSpec,
     DataSourceQuery,
+    UIState,
 } from '@binocolo/common/common.js';
 import { TimeRange } from '@binocolo/common/types';
 import {
@@ -92,7 +93,7 @@ export class LogTableConfiguration {
     public zoom: number;
     public multiline: boolean;
     public nullVisible: boolean;
-    public allSearchesDashboardShown: boolean;
+    public uiState: UIState;
 
     public shownPropertiesSet: Set<string>;
     private preamblePropertiesSet: Set<string>;
@@ -126,21 +127,19 @@ export class LogTableConfiguration {
     public dataSourceSets: LogTableConfigurationParams['dataSourceSets'];
 
     public savedSearches: NamedSearch[];
-    public selectedSavedSearchId: string | null;
-    public currentSearch: SearchSpec;
-    public currentSearchOriginal: SearchSpec;
+    public currentSearch: SearchSpec | null;
+    public currentSearchOriginal: SearchSpec | null;
 
     public colorTheme: ColorTheme;
 
     private dataSourcesMap: Map<string, DataSourceConfig>;
-    public currentDataSourceId: string;
 
     constructor(params: LogTableConfigurationParams, sendMessage: SendMessageFunction) {
         this.colorTheme = DEFAULT_COLOR_THEME;
         this.timeRanges = params.timeRanges;
         this.preambleProperties = params.preambleProperties;
         this.dataSourceSets = params.dataSourceSets;
-        this.allSearchesDashboardShown = false;
+        this.uiState = params.initialUIState;
 
         this.dataSourcesMap = new Map();
         for (let set of this.dataSourceSets) {
@@ -148,14 +147,11 @@ export class LogTableConfiguration {
                 this.dataSourcesMap.set(dataSource.id, dataSource);
             }
         }
-        this.currentDataSourceId = params.initialDataSourceId;
 
-        this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
+        this.supportedDataSourceFilters = this.getDataSource(this.uiState.dataSourceId).supportedFilters;
 
-        this.savedSearches = this.getCurrentDataSource().savedSearches;
-        this.selectedSavedSearchId = null;
-
-        this.currentSearch = this.getCurrentDataSource().initialQuery.search;
+        this.savedSearches = this.getDataSource(this.uiState.dataSourceId).savedSearches;
+        this.currentSearch = this.getInitialSearch();
         this.currentSearchOriginal = cloneDeep(this.currentSearch);
         this.timeFormat = {
             timestampFormat: TIMESTAMP_FORMAT,
@@ -183,7 +179,9 @@ export class LogTableConfiguration {
         this.serverError = null;
         this.dataBundleStats = null;
 
-        this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
+        this.elaboratedTimeRange = elaborateTimeRange(
+            getTimeRangeFromSpecification(this.getDataSource(this.uiState.dataSourceId).initialQuery.timeRange)
+        );
         this.dataSourceTimeRange = this.elaboratedTimeRange.timeRange;
         this.histograms = new Map();
 
@@ -215,10 +213,8 @@ export class LogTableConfiguration {
             colorTheme: observable,
             entriesSelection: observable,
             shownPropertiesSet: observable.deep,
-            currentDataSourceId: observable,
             savedSearches: observable,
-            selectedSavedSearchId: observable,
-            allSearchesDashboardShown: observable,
+            uiState: observable.deep,
 
             toggleNullVisible: action,
             togglePropertyVisibility: action,
@@ -243,8 +239,32 @@ export class LogTableConfiguration {
         });
     }
 
+    private getInitialSearch(): SearchSpec | null {
+        const uiState = this.uiState;
+        const uiStateType = uiState.type;
+        switch (uiStateType) {
+            case 'pristineDataSource':
+                return this.getDataSource(this.uiState.dataSourceId).initialQuery.search;
+            case 'savedSearchSelected':
+                for (let search of this.savedSearches) {
+                    if (search.id === uiState.savedSearchId) {
+                        return search.spec;
+                    }
+                }
+                return null;
+            case 'searchesDashboard':
+                return null;
+            default:
+                const exhaustiveCheck: never = uiStateType;
+                throw new Error(`Unhandled message.type: ${uiStateType}`);
+        }
+    }
+
     public showAllSearchesDashboard(): void {
-        this.allSearchesDashboardShown = true;
+        this.setUIState({
+            type: 'searchesDashboard',
+            dataSourceId: this.uiState.dataSourceId,
+        });
         this.loadHistogramsForAllSearches();
     }
 
@@ -259,7 +279,7 @@ export class LogTableConfiguration {
         }));
         this.sendMessage({
             type: 'queryDataSource',
-            dataSourceId: this.currentDataSourceId,
+            dataSourceId: this.uiState.dataSourceId,
             timeRange: this.dataSourceTimeRange,
             queries,
         });
@@ -275,11 +295,27 @@ export class LogTableConfiguration {
         this.selectSavedSearch(null);
     }
 
+    private setUIState(uiState: UIState): void {
+        this.uiState = uiState;
+        this.sendMessage({ type: 'saveUIState', uiState });
+    }
+
     public selectSavedSearch(search: NamedSearch | null): void {
-        this.allSearchesDashboardShown = false;
+        if (search) {
+            this.setUIState({
+                type: 'savedSearchSelected',
+                dataSourceId: this.uiState.dataSourceId,
+                savedSearchId: search.id,
+            });
+        } else {
+            this.setUIState({
+                type: 'pristineDataSource',
+                dataSourceId: this.uiState.dataSourceId,
+                // searchSpec: this.getDataSource(this.uiState.dataSourceId).initialQuery.search,
+            });
+        }
         this.histograms = new Map();
-        this.selectedSavedSearchId = search ? search.id : null;
-        this.currentSearch = search ? search.spec : this.getCurrentDataSource().initialQuery.search;
+        this.currentSearch = search ? search.spec : this.getDataSource(this.uiState.dataSourceId).initialQuery.search;
         this.currentSearchOriginal = cloneDeep(this.currentSearch);
         this.updatePropertiesMap();
         this.computePropertiesData();
@@ -292,15 +328,24 @@ export class LogTableConfiguration {
     }
 
     public getSavedSearchTitle(): string | null {
-        if (this.selectedSavedSearchId === null) {
-            return null;
+        const uiState = this.uiState;
+        const uiStateType = uiState.type;
+        switch (uiStateType) {
+            case 'pristineDataSource':
+                return null;
+            case 'savedSearchSelected':
+                for (let search of this.savedSearches) {
+                    if (search.id === uiState.savedSearchId) {
+                        return search.title;
+                    }
+                }
+                return null;
+            case 'searchesDashboard':
+                return null;
+            default:
+                const exhaustiveCheck: never = uiStateType;
+                throw new Error(`Unhandled message.type: ${uiStateType}`);
         }
-        for (let search of this.savedSearches) {
-            if (search.id === this.selectedSavedSearchId) {
-                return search.title;
-            }
-        }
-        return null;
     }
 
     public isSavedSearchNameValid(searchName: string): boolean {
@@ -330,7 +375,10 @@ export class LogTableConfiguration {
     }
 
     public saveSearch({ title, asNew }: { title: string; asNew?: boolean }): void {
-        const id = asNew || !this.selectedSavedSearchId ? this.makeNewSearchId(title) : this.selectedSavedSearchId;
+        if (!this.currentSearch) {
+            return;
+        }
+        const id = asNew || this.uiState.type !== 'savedSearchSelected' ? this.makeNewSearchId(title) : this.uiState.savedSearchId;
         const namedSearch: NamedSearch = {
             id,
             title,
@@ -348,35 +396,43 @@ export class LogTableConfiguration {
             }
         });
         this.currentSearchOriginal = cloneDeep(this.currentSearch);
-        this.selectedSavedSearchId = id;
+        this.setUIState({
+            type: 'savedSearchSelected',
+            dataSourceId: this.uiState.dataSourceId,
+            savedSearchId: id,
+        });
         this.sendMessage({
             type: 'saveSearch',
-            dataSourceId: this.currentDataSourceId,
+            dataSourceId: this.uiState.dataSourceId,
             search: namedSearch,
         });
     }
 
     public deleteSelectedSearch(): void {
-        if (!this.selectedSavedSearchId) {
+        if (this.uiState.type !== 'savedSearchSelected') {
             return;
         }
-        const searchId = this.selectedSavedSearchId;
-        this.savedSearches = this.savedSearches.filter((search) => search.id !== this.selectedSavedSearchId);
+        const searchId = this.uiState.savedSearchId;
+        this.savedSearches = this.savedSearches.filter((search) => search.id !== searchId);
         this.selectSavedSearch(this.savedSearches.length > 0 ? this.savedSearches[0] : null);
         this.sendMessage({
             type: 'deleteSearch',
-            dataSourceId: this.currentDataSourceId,
+            dataSourceId: this.uiState.dataSourceId,
             searchId,
         });
     }
 
     public changeDataSource(dataSourceId: string): void {
-        this.currentDataSourceId = dataSourceId;
-        this.supportedDataSourceFilters = this.getCurrentDataSource().supportedFilters;
-        this.currentSearch = this.getCurrentDataSource().initialQuery.search;
+        const dataSource = this.getDataSource(dataSourceId);
+        this.setUIState({
+            type: 'pristineDataSource',
+            dataSourceId,
+        });
+        this.supportedDataSourceFilters = dataSource.supportedFilters;
+        this.currentSearch = dataSource.initialQuery.search;
         this.currentSearchOriginal = cloneDeep(this.currentSearch);
-        this.savedSearches = this.getCurrentDataSource().savedSearches;
-        this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
+        this.savedSearches = dataSource.savedSearches;
+        this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(dataSource.initialQuery.timeRange));
         this.dataSourceTimeRange = this.elaboratedTimeRange.timeRange;
         this.histograms = new Map();
 
@@ -393,21 +449,24 @@ export class LogTableConfiguration {
 
     private getKnownPropertiesMap(): Map<string, PropertyConfiguration> {
         const map: Map<string, PropertyConfiguration> = new Map();
-        for (let propertyConfig of this.getCurrentDataSource().knownProperties) {
+        for (let propertyConfig of this.getDataSource(this.uiState.dataSourceId).knownProperties) {
             map.set(propertyConfig.selector, propertyConfig);
         }
         return map;
     }
 
-    private getCurrentDataSource(): DataSourceConfig {
-        const dataSource = this.dataSourcesMap.get(this.currentDataSourceId);
+    private getDataSource(dataSourceId: string): DataSourceConfig {
+        const dataSource = this.dataSourcesMap.get(dataSourceId);
         if (!dataSource) {
-            throw new Error(`Cannot find data source with ID ${this.currentDataSourceId}`);
+            throw new Error(`Cannot find data source with ID ${dataSourceId}`);
         }
         return dataSource;
     }
 
     public setHistogramBreakdownProperty(property: JSONFieldSelector | null): void {
+        if (!this.currentSearch) {
+            return;
+        }
         this.currentSearch.histogramBreakdownProperty = property ? makeStringFromJSONFieldSelector(property) : null;
         this.loadEntriesFromDataSource();
     }
@@ -520,28 +579,39 @@ export class LogTableConfiguration {
         this.histograms = new Map();
         this.loading = true;
         this.dataBundleStats = null;
-        if (this.allSearchesDashboardShown) {
-            this.loadHistogramsForAllSearches();
-        } else {
-            this.sendMessage({
-                type: 'queryDataSource',
-                dataSourceId: this.currentDataSourceId,
-                timeRange: this.dataSourceTimeRange,
-                queries: [
-                    {
-                        type: 'fetchEntries',
-                        filters: this.currentSearch.filters,
-                    },
-                    {
-                        type: 'buildHistogram',
-                        filters: this.currentSearch.filters,
-                        histogramBreakdownProperty: this.currentSearch.histogramBreakdownProperty
-                            ? parseFieldSelectorText(this.currentSearch.histogramBreakdownProperty)
-                            : null,
-                        savedSearchId: null,
-                    },
-                ],
-            });
+        const uiState = this.uiState;
+        const uiStateType = uiState.type;
+        switch (uiStateType) {
+            case 'pristineDataSource':
+            case 'savedSearchSelected':
+                if (this.currentSearch) {
+                    this.sendMessage({
+                        type: 'queryDataSource',
+                        dataSourceId: this.uiState.dataSourceId,
+                        timeRange: this.dataSourceTimeRange,
+                        queries: [
+                            {
+                                type: 'fetchEntries',
+                                filters: this.currentSearch.filters,
+                            },
+                            {
+                                type: 'buildHistogram',
+                                filters: this.currentSearch.filters,
+                                histogramBreakdownProperty: this.currentSearch.histogramBreakdownProperty
+                                    ? parseFieldSelectorText(this.currentSearch.histogramBreakdownProperty)
+                                    : null,
+                                savedSearchId: null,
+                            },
+                        ],
+                    });
+                }
+                return;
+            case 'searchesDashboard':
+                this.loadHistogramsForAllSearches();
+                return;
+            default:
+                const exhaustiveCheck: never = uiStateType;
+                throw new Error(`Unhandled message.type: ${uiStateType}`);
         }
     }
 
@@ -611,7 +681,10 @@ export class LogTableConfiguration {
         };
     }
 
-    private updatePropertiesMap() {
+    private updatePropertiesMap(): void {
+        if (!this.currentSearch) {
+            return;
+        }
         const preambleProperties = this.preambleProperties;
         this.preamblePropertiesSet = new Set();
         for (let property of preambleProperties) {
@@ -624,6 +697,9 @@ export class LogTableConfiguration {
     }
 
     private computePropertiesData(): void {
+        if (!this.currentSearch) {
+            return;
+        }
         const preambleProperties = this.preambleProperties.map(parseFieldSelectorText);
         this.propertiesData = [];
         let properties: { selector: JSONFieldSelector; tonedDown: boolean }[] = [];
@@ -678,6 +754,9 @@ export class LogTableConfiguration {
     }
 
     togglePropertyVisibility(selector: JSONFieldSelector): void {
+        if (!this.currentSearch) {
+            return;
+        }
         const selectorString = makeStringFromJSONFieldSelector(selector);
         if (!this.isPropertyShown(selector)) {
             this.currentSearch.shownProperties.push(selectorString);
@@ -695,6 +774,9 @@ export class LogTableConfiguration {
     }
 
     private computeColumns(): void {
+        if (!this.currentSearch) {
+            return;
+        }
         const preambleProperties = this.preambleProperties.map(parseFieldSelectorText);
         let widths: (number | null)[] = [...FIXED_COLUMNS_WIDTHS];
         const selectors = preambleProperties.concat(this.currentSearch.shownProperties.map(parseFieldSelectorText));
@@ -739,6 +821,9 @@ export class LogTableConfiguration {
     }
 
     addFilter(filter: DataSourceFilter): void {
+        if (!this.currentSearch) {
+            return;
+        }
         this.currentSearch.filters.push(filter);
         this.loadEntriesFromDataSource();
     }
@@ -749,6 +834,9 @@ export class LogTableConfiguration {
     }
 
     private _removeFilter(filterId: string): void {
+        if (!this.currentSearch) {
+            return;
+        }
         let fromDataSource: boolean = false;
         this.currentSearch.filters = this.currentSearch.filters.filter((filter) => {
             const match = makeFilterId(filter) === filterId;
@@ -760,6 +848,9 @@ export class LogTableConfiguration {
     }
 
     changeOrAddFilter(spec: PartialDataSourceFilter, filter: DataSourceFilter): void {
+        if (!this.currentSearch) {
+            return;
+        }
         const searchResult = this.searchFilter(spec);
         if (searchResult) {
             const filtersList = this.currentSearch.filters;
@@ -834,6 +925,9 @@ export class LogTableConfiguration {
     }
 
     searchFilter<Filter extends DataSourceFilter>(spec: PartialDataSourceFilter): { filter: Filter; idx: number } | null {
+        if (!this.currentSearch) {
+            return null;
+        }
         for (let idx = 0; idx < this.currentSearch.filters.length; idx += 1) {
             const filter = this.currentSearch.filters[idx];
             if (filterMatchesSpec(filter, spec)) {
@@ -875,6 +969,9 @@ export class LogTableConfiguration {
     }
 
     getDetailColumns(): { columnStart: number; columnEnd: number } {
+        if (!this.currentSearch) {
+            throw new Error('No current search');
+        }
         const preambleProperties = this.preambleProperties.map(parseFieldSelectorText);
         return {
             columnStart: FIRST_ATTRIBUTE_COL_NUM + preambleProperties.length,
@@ -905,7 +1002,7 @@ export class LogTableConfiguration {
     }
 
     getDataSourceName(): string {
-        return this.getCurrentDataSource().name;
+        return this.getDataSource(this.uiState.dataSourceId).name;
     }
 }
 

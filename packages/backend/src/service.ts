@@ -6,6 +6,8 @@ import {
     LogTableConfigurationParams,
     SaveSearchCommand,
     DeleteSearchCommand,
+    UIState,
+    SaveUIStateCommand,
 } from '@binocolo/common/common.js';
 import { QueryDescriptor, IDataSourceAdapter, DataSourceWithSavedSearches, ServiceSpecs, DataSourceSetDescriptor } from './types.js';
 import { IDataSourceSetStorage } from './types.js';
@@ -37,8 +39,8 @@ export interface IConfigurationStorage<S extends ServiceSpecs> {
     getDataSourceSetDescriptors(): Promise<DataSourceSetDescriptor<S>[]>;
     getDataSourceSetStorage(setId: string): Promise<IDataSourceSetStorage<S>>;
     getDataSources(): Promise<DataSourceWithSavedSearches<S>[]>;
-    getCurrentDataSourceId(): Promise<DataSourceId>;
-    setCurrentDataSourceId(id: DataSourceId): Promise<void>;
+    getCurrentUIState(): Promise<UIState>;
+    setCurrentUIState(uiState: UIState): Promise<void>;
 }
 
 export class Service<S extends ServiceSpecs> implements INetworkHandler {
@@ -113,10 +115,10 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
                 });
             }
         }
-        const initialDataSourceId = await this.configurationStorage.getCurrentDataSourceId();
+        const currentUIState = await this.configurationStorage.getCurrentUIState();
         const config: LogTableConfigurationParams = {
             ...DEFAULT_CONFIGURATION,
-            initialDataSourceId: `${initialDataSourceId.dataSourceSetId}:${initialDataSourceId.dataSourceId}`,
+            initialUIState: currentUIState,
             dataSourceSets: dataSourcesConfig,
         };
         await this.send({ type: 'configuration', params: config });
@@ -125,7 +127,6 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
     async onMessage(command: BackendCommand): Promise<void> {
         switch (command.type) {
             case 'queryDataSource':
-                await this.configurationStorage.setCurrentDataSourceId(parseDataSourceId(command.dataSourceId));
                 return await this.fetchEntries(command);
             case 'stopQuery':
                 this.stopQuery();
@@ -136,10 +137,17 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
             case 'deleteSearch':
                 await this.deleteSearch(command);
                 return;
+            case 'saveUIState':
+                await this.saveUIState(command);
+                return;
             default:
                 const exhaustiveCheck: never = command;
                 throw new Error(`Unhandled command.type: ${exhaustiveCheck}`);
         }
+    }
+
+    private async saveUIState(command: SaveUIStateCommand): Promise<void> {
+        await this.configurationStorage.setCurrentUIState(command.uiState);
     }
 
     private async saveSearch(command: SaveSearchCommand): Promise<void> {

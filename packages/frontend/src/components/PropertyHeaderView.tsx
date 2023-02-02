@@ -46,7 +46,9 @@ export const PropertyHeaderView = observer(
         };
         return (
             <>
-                {!config.currentSearch.histogramBreakdownProperty || config.currentSearch.histogramBreakdownProperty !== selectorText ? (
+                {!config.currentSearch ||
+                !config.currentSearch.histogramBreakdownProperty ||
+                config.currentSearch.histogramBreakdownProperty !== selectorText ? (
                     <ActionsSectionDiv>
                         <TextBlock
                             config={config}

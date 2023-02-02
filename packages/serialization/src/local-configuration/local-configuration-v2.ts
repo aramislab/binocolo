@@ -1,16 +1,23 @@
 import { Static, Type } from '@sinclair/typebox';
 
-export const SerializedLocalConfigurationDataV1Schema = Type.Object({
-    v: Type.Literal(1),
+export const SerializedLocalConfigurationDataV2Schema = Type.Object({
+    v: Type.Literal(2),
     state: Type.Object({
-        currentDataSourceId: Type.Union([
+        currentUIState: Type.Union([
             Type.Object({
-                dataSourceSetId: Type.String(),
+                type: Type.Literal('pristineDataSource'),
                 dataSourceId: Type.String(),
             }),
-            Type.Null(),
+            Type.Object({
+                type: Type.Literal('savedSearchSelected'),
+                dataSourceId: Type.String(),
+                savedSearchId: Type.String(),
+            }),
+            Type.Object({
+                type: Type.Literal('searchesDashboard'),
+                dataSourceId: Type.String(),
+            }),
         ]),
-        currentSavedSearchId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     }),
     dataSources: Type.Array(
         Type.Object({
@@ -36,4 +43,4 @@ export const SerializedLocalConfigurationDataV1Schema = Type.Object({
         })
     ),
 });
-export type SerializedLocalConfigurationDataV1 = Static<typeof SerializedLocalConfigurationDataV1Schema>;
+export type SerializedLocalConfigurationDataV2 = Static<typeof SerializedLocalConfigurationDataV2Schema>;
