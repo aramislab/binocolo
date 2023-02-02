@@ -172,7 +172,6 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
     }
 
     private async fetchEntries({ timeRange, dataSourceId, queries }: QueryDataSourceCommand): Promise<void> {
-        let errorMessage: string | undefined = undefined;
         // let stats: RecordsScanningStats | null | undefined = undefined;
         try {
             const dataSource = this.getDataSourceById(dataSourceId);
@@ -195,9 +194,9 @@ class ConnectionHandler<S extends ServiceSpecs> implements IConnectionHandler {
             this.query = null;
         } catch (err) {
             this.logger.error('Unexpected error while fetching logs', err);
-            errorMessage = (err as any).message;
+            const errorMessage: string = (err as any).message || 'Server Error';
+            await this.send({ type: 'serverError', errorMessage });
         }
-        await this.send({ type: 'doneLoadingEntries', errorMessage });
     }
 
     async close(): Promise<void> {

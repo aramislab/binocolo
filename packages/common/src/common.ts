@@ -24,6 +24,7 @@ export type BuildHistogramQuery = {
     type: 'buildHistogram';
     filters: DataSourceFilter[];
     histogramBreakdownProperty: JSONFieldSelector | null;
+    savedSearchId: string | null;
 };
 
 export type DataSourceQuery = FetchEntriesQuery | BuildHistogramQuery;
@@ -70,6 +71,8 @@ export type SendHistogramCommand = {
     type: 'sendHistogram';
     elaboratedTimeRange: ElaboratedTimeRange;
     histogram: HistogramDataSeries[];
+    savedSearchId: string | null;
+    done: boolean;
 };
 
 export type RecordsScanningStats = {
@@ -78,9 +81,9 @@ export type RecordsScanningStats = {
     numResults: number;
 };
 
-export type DoneLoadingEntriesCommand = {
-    type: 'doneLoadingEntries';
-    errorMessage?: string;
+export type ServerErrorCommand = {
+    type: 'serverError';
+    errorMessage: string;
 };
 
 export type ConfigurationCommand = {
@@ -88,7 +91,7 @@ export type ConfigurationCommand = {
     params: LogTableConfigurationParams;
 };
 
-export type ClientCommand = SendEntriesCommand | DoneLoadingEntriesCommand | ConfigurationCommand | SendHistogramCommand;
+export type ClientCommand = SendEntriesCommand | ServerErrorCommand | ConfigurationCommand | SendHistogramCommand;
 
 export function parseClientCommand(data: any): ClientCommand {
     // TODO: implement Schema checking

@@ -73,6 +73,7 @@ export class CloudwatchLogsAdapter implements IDataSourceAdapter {
         search: {
             filters: [],
             shownProperties: ['severity', 'message'],
+            histogramBreakdownProperty: null,
         },
         timeRange: {
             type: 'relative',
@@ -217,7 +218,7 @@ class AWSCloudWatchQuerySet {
         await this.params.sendMessage({ type: 'sendEntries', entries: state.entries, stats });
     }
 
-    private async _buildHistogram({ filters, histogramBreakdownProperty }: BuildHistogramQuery): Promise<void> {
+    private async _buildHistogram({ filters, histogramBreakdownProperty, savedSearchId }: BuildHistogramQuery): Promise<void> {
         let histogramFields: string[] = [
             `count(*) as numRecords by toMillis(bin(${makePeriodString(this.elaboratedTimeRange.bucketSpec.durationInMs)})) as bucket`,
         ];
@@ -233,7 +234,7 @@ class AWSCloudWatchQuerySet {
             onStarted: (descriptor) => {
                 this.queryDescriptors.push(descriptor);
             },
-            onData: async ({ rows }) => {
+            onData: async ({ rows, complete }) => {
                 let histogramMaps = new HistogramMaps();
                 // totFromHistogram = 0;
                 for (let row of rows) {
@@ -255,6 +256,8 @@ class AWSCloudWatchQuerySet {
                     type: 'sendHistogram',
                     elaboratedTimeRange: this.elaboratedTimeRange,
                     histogram: histogramMaps.getDataSeries(this.elaboratedTimeRange.timestamps),
+                    savedSearchId,
+                    done: complete,
                 });
             },
         });
@@ -275,7 +278,7 @@ class AWSCloudWatchQuerySet {
         timeRange: TimeRange;
         onlyLastBatch: boolean;
         onStarted: (query: QueryDescriptor) => void;
-        onData: (params: { rows: ResultField[][]; stats: QueryStatistics }) => Promise<void>;
+        onData: (params: { rows: ResultField[][]; stats: QueryStatistics; complete: boolean }) => Promise<void>;
     }): Promise<{ stats?: { recordsScanned: number; recordsMatched: number; numResults: number } }> {
         this.verbose &&
             this.logger.info(
@@ -324,7 +327,7 @@ class AWSCloudWatchQuerySet {
                     throw new Error('Missing statistics');
                 }
                 if (!onlyLastBatch || response.status === 'Complete') {
-                    await onData({ rows: response.results, stats: response.statistics });
+                    await onData({ rows: response.results, stats: response.statistics, complete: response.status === 'Complete' });
                 }
                 sleepDelayInMs = DELAY_BETWEEN_API_CALLS_IN_MS; // Fetch data fast when it becomes available
             }

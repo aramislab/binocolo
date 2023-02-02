@@ -50,9 +50,9 @@ type EventsChartParams = {
     histogramData: HistogramData;
     onChangeTimeRange: (timeRange: TimeRange) => void;
     zoom: number;
-    loading: boolean;
     className?: string;
     histogramBreakdownProperty: string | null;
+    dashboard: boolean;
 };
 
 export const EventsChart = (params: EventsChartParams) => {
@@ -67,16 +67,16 @@ const LineGraph = ({
     histogramData,
     onChangeTimeRange,
     zoom,
-    loading,
     className,
     histogramBreakdownProperty,
     config,
+    dashboard,
 }: EventsChartParams) => {
     const [highlighted, setHighlighted] = React.useState<HistogramSeriesData | null>(null);
     const [hovering, setHovering] = React.useState<HistogramSeriesData | null>(null);
     const [excluded, setExcluded] = React.useState<HistogramSeriesData[]>([]);
     const options = buildLineGraphOptions({
-        loading,
+        loading: histogramData.loading,
         colorTheme: config.colorTheme,
         histogramData,
         onChangeTimeRange,
@@ -115,24 +115,26 @@ const LineGraph = ({
                 <Line options={options} data={data} />
             </div>
             <div
-                className="legend"
+                className="legend legend-background"
                 onMouseOut={() => {
                     setHovering(null);
                 }}
             >
                 <div className="legend-title">
                     <div className="title">{histogramBreakdownProperty}:</div>
-                    <TextBlock
-                        config={config}
-                        className="button"
-                        theme={config.colorTheme.light}
-                        button
-                        onClick={() => {
-                            config.setHistogramBreakdownProperty(null);
-                        }}
-                    >
-                        Ungroup
-                    </TextBlock>
+                    {!dashboard && (
+                        <TextBlock
+                            config={config}
+                            className="button"
+                            theme={config.colorTheme.light}
+                            button
+                            onClick={() => {
+                                config.setHistogramBreakdownProperty(null);
+                            }}
+                        >
+                            Ungroup
+                        </TextBlock>
+                    )}
                 </div>
                 {histogramData.datasets.map((dataSet, idx) => {
                     let modifier: string = '';
@@ -180,13 +182,14 @@ const LineGraph = ({
     );
 };
 
-const BarGraph = ({ config, histogramData, onChangeTimeRange, zoom, loading, className }: EventsChartParams) => {
+const BarGraph = ({ config, histogramData, onChangeTimeRange, zoom, className, dashboard }: EventsChartParams) => {
     const options = buildBarGraphOptions({
-        loading,
+        loading: histogramData.loading,
         colorTheme: config.colorTheme,
         histogramData,
         onChangeTimeRange,
         zoom,
+        dashboard,
     });
     const data: ChartData<'bar', (number | undefined)[], string> = {
         labels: histogramData.labels,
@@ -211,6 +214,7 @@ const BarGraph = ({ config, histogramData, onChangeTimeRange, zoom, loading, cla
             <div className="chart">
                 <Bar options={options} data={data} />
             </div>
+            {dashboard && <div className="legend" />}
         </ChartContainerDiv>
     );
 };
@@ -219,12 +223,17 @@ const ChartContainerDiv = styled.div<{ readonly colorTheme: ColorTheme }>`
     background-color: ${(props) => props.colorTheme.light.background};
     display: flex;
 
-    .legend {
-        min-width: 300px;
+    .legend-background {
         background-color: ${(props) => props.colorTheme.light.lightBackground};
         border: 1px solid ${(props) => props.colorTheme.light.lines};
+    }
+
+    .legend {
+        min-width: 300px;
+        max-width: 300px;
+        width: 300px;
         padding: 10px;
-        margin: 10px 0 0 0;
+        margin: 10px 0 0 10px;
         display: flex;
         flex-direction: column;
 
@@ -257,6 +266,8 @@ const ChartContainerDiv = styled.div<{ readonly colorTheme: ColorTheme }>`
 
             .line {
                 width: 20px;
+                min-width: 20px;
+                max-width: 20px;
                 border-top: 4px solid black; // Color to be overridden via style properties
                 border-radius: 2px;
                 margin-right: 5px;
@@ -266,6 +277,7 @@ const ChartContainerDiv = styled.div<{ readonly colorTheme: ColorTheme }>`
                 font-family: ${MONOSPACE_FONT};
                 font-size: 12px;
                 user-select: none;
+                overflow: scroll;
             }
         }
 
@@ -284,6 +296,9 @@ const ChartContainerDiv = styled.div<{ readonly colorTheme: ColorTheme }>`
         }
     }
 `;
+
+const ASPECT_RATION_WITH_LEGEND = 6;
+const ASPECT_RATION_WITHOUT_LEGEND = 8;
 
 function buildLineGraphOptions({
     loading,
@@ -381,7 +396,7 @@ function buildLineGraphOptions({
                 },
             },
         },
-        aspectRatio: 6,
+        aspectRatio: ASPECT_RATION_WITH_LEGEND,
         responsive: true,
         scales: {
             y: {
@@ -422,12 +437,14 @@ function buildBarGraphOptions({
     histogramData,
     onChangeTimeRange,
     zoom,
+    dashboard,
 }: {
     loading: boolean;
     colorTheme: ColorTheme;
     histogramData: HistogramData;
     onChangeTimeRange: (timeRange: TimeRange) => void;
     zoom: number;
+    dashboard: boolean;
 }): ChartOptions<'bar'> {
     const maxY = Math.max(maxValue(histogramData.datasets.map((dataset) => maxValue(dataset.buckets))), 1);
     return {
@@ -512,7 +529,7 @@ function buildBarGraphOptions({
                 },
             },
         },
-        aspectRatio: 8,
+        aspectRatio: dashboard ? ASPECT_RATION_WITH_LEGEND : ASPECT_RATION_WITHOUT_LEGEND,
         responsive: true,
         scales: {
             y: {

@@ -34,8 +34,8 @@ const App = observer(({ state }: { state: IApplicationState }) => {
 
     return (
         <AppDiv theme={theme}>
-            <MainAreaDiv>
-                <SectionDiv>
+            <MainAreaDiv dashboard={config.allSearchesDashboardShown}>
+                <SectionDiv style={{ marginBottom: config.allSearchesDashboardShown ? 20 : undefined }}>
                     <TitleSectionDiv theme={config.colorTheme.light}>
                         <TextBlock
                             config={config}
@@ -64,7 +64,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                         </div>
                     </TitleSectionDiv>
                     <div className="right">
-                        <TimeRangeControl config={state.config} />
+                        <TimeRangeControl config={config} />
                         <TextBlock
                             config={config}
                             style={{ padding: 3, marginLeft: 10 }}
@@ -96,110 +96,149 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                         </TextBlock>
                     </div>
                 </SectionDiv>
-                <SavedSearchSection>
-                    <TextBlock
+                {!config.allSearchesDashboardShown && (
+                    <SavedSearchSection>
+                        <TextBlock
+                            config={config}
+                            className="savedSearchesButton"
+                            theme={theme}
+                            button
+                            popup={({ close }) => ({
+                                title: 'Saved Searches',
+                                component: <SavedSearches config={config} close={close} />,
+                            })}
+                        >
+                            <FontAwesomeIcon icon={faBars} size={'xs'} />
+                        </TextBlock>
+                        <SearchTitle config={config} className="title" />
+                    </SavedSearchSection>
+                )}
+                {!config.allSearchesDashboardShown && (
+                    <FiltersSection theme={theme} config={config}>
+                        {config.currentSearch.filters.map((filter) => (
+                            <div key={makeFilterId(filter)} className="filter dataSourceFilter">
+                                <div className="filter-text">{makeFilterDescription(filter)}</div>
+                                <TextBlock
+                                    config={config}
+                                    className="button"
+                                    theme={theme}
+                                    button
+                                    onClick={() => {
+                                        config.removeFilter(makeFilterId(filter));
+                                    }}
+                                >
+                                    <FontAwesomeIcon icon={faXmark} size={'1x'} />
+                                </TextBlock>
+                            </div>
+                        ))}
+                    </FiltersSection>
+                )}
+                {config.allSearchesDashboardShown ? (
+                    <div className="charts-area-container">
+                        <div className="charts-area">
+                            {config.savedSearches.map((search) => (
+                                <React.Fragment key={search.id}>
+                                    <TextBlock
+                                        config={config}
+                                        className="chart-title"
+                                        theme={theme}
+                                        onClick={() => {
+                                            config.selectSavedSearchById(search.id);
+                                        }}
+                                    >
+                                        {search.title}
+                                    </TextBlock>
+                                    <EventsChart
+                                        className="chart"
+                                        config={config}
+                                        histogramData={config.buildHistogramData(search.id)}
+                                        onChangeTimeRange={(timeRange) => config && config.changeTimeRange(timeRange)}
+                                        zoom={config.zoom}
+                                        histogramBreakdownProperty={search.spec.histogramBreakdownProperty}
+                                        dashboard={true}
+                                        // incomplete={!config.resultsComplete}
+                                    />
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <EventsChart
+                        className="chart"
                         config={config}
-                        className="savedSearchesButton"
-                        theme={theme}
-                        button
-                        popup={({ close }) => ({
-                            title: 'Saved Searches',
-                            component: <SavedSearches config={config} close={close} />,
-                        })}
-                    >
-                        <FontAwesomeIcon icon={faBars} size={'xs'} />
-                    </TextBlock>
-                    <SearchTitle config={config} className="title" />
-                </SavedSearchSection>
-                <FiltersSection theme={theme} config={config}>
-                    {state.config.currentSearch.filters.map((filter) => (
-                        <div key={makeFilterId(filter)} className="filter dataSourceFilter">
-                            <div className="filter-text">{makeFilterDescription(filter)}</div>
+                        histogramData={config.buildHistogramData(null)}
+                        onChangeTimeRange={(timeRange) => config && config.changeTimeRange(timeRange)}
+                        zoom={config.zoom}
+                        histogramBreakdownProperty={config.currentSearch.histogramBreakdownProperty}
+                        dashboard={false}
+                        // incomplete={!config.resultsComplete}
+                    />
+                )}
+            </MainAreaDiv>
+            {!config.allSearchesDashboardShown && (
+                <>
+                    <SectionDiv theme={theme}>
+                        {/* <TextBlock
+                            config={config}
+                            className="section-button"
+                            theme={theme}
+                            popup={() => ({
+                                title: 'Change Zoom',
+                                value: zoomToText(config.zoom),
+                                commands: [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2].map((value) => ({
+                                    title: zoomToText(value),
+                                    onClick({ close }) {
+                                        close();
+                                        config.setZoom(value);
+                                    },
+                                })),
+                            })}
+                        >
+                            Zoom: {zoomToText(config.zoom)}
+                        </TextBlock> */}
+
+                        <TextBlock config={config} className="section-button" theme={theme}>
+                            {config.loading ? (
+                                'Loading…'
+                            ) : (
+                                <>
+                                    {config.entriesSelection.entries.length} lines:{' '}
+                                    {!config.dataBundleStats
+                                        ? null
+                                        : config.dataBundleStats.recordsMatched === config.dataBundleStats.numResults
+                                        ? 'Complete'
+                                        : `${Math.round(
+                                              (config.dataBundleStats.numResults / config.dataBundleStats.recordsMatched) * 100
+                                          )}% of ${millify(config.dataBundleStats.recordsMatched)}`}
+                                </>
+                            )}
+                        </TextBlock>
+                        <div className="right">
                             <TextBlock
                                 config={config}
-                                className="button"
+                                className="section-button"
                                 theme={theme}
-                                button
                                 onClick={() => {
-                                    config.removeFilter(makeFilterId(filter));
+                                    config.toggleMultiline();
                                 }}
                             >
-                                <FontAwesomeIcon icon={faXmark} size={'1x'} />
+                                {config.multiline ? 'Multiline' : 'Single line'}
+                            </TextBlock>
+                            <TextBlock
+                                config={config}
+                                className="section-button"
+                                theme={theme}
+                                onClick={() => {
+                                    config.toggleNullVisible();
+                                }}
+                            >
+                                {config.nullVisible ? 'Null Visible' : 'Null Hidden'}
                             </TextBlock>
                         </div>
-                    ))}
-                </FiltersSection>
-                <EventsChart
-                    className="chart"
-                    config={state.config}
-                    histogramData={state.config.buildHistogramData()}
-                    onChangeTimeRange={(timeRange) => state.config && state.config.changeTimeRange(timeRange)}
-                    zoom={state.config.zoom}
-                    loading={state.config.loading}
-                    histogramBreakdownProperty={state.config.currentSearch.histogramBreakdownProperty}
-                    // incomplete={!state.config.resultsComplete}
-                />
-            </MainAreaDiv>
-            <SectionDiv theme={theme}>
-                {/* <TextBlock
-                    config={config}
-                    className="section-button"
-                    theme={theme}
-                    popup={() => ({
-                        title: 'Change Zoom',
-                        value: zoomToText(config.zoom),
-                        commands: [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2].map((value) => ({
-                            title: zoomToText(value),
-                            onClick({ close }) {
-                                close();
-                                config.setZoom(value);
-                            },
-                        })),
-                    })}
-                >
-                    Zoom: {zoomToText(config.zoom)}
-                </TextBlock> */}
-
-                <TextBlock config={config} className="section-button" theme={theme}>
-                    {config.loading ? (
-                        'Loading…'
-                    ) : (
-                        <>
-                            {config.entriesSelection.entries.length} lines:{' '}
-                            {!config.dataBundleStats
-                                ? null
-                                : config.dataBundleStats.recordsMatched === config.dataBundleStats.numResults
-                                ? 'Complete'
-                                : `${Math.round(
-                                      (config.dataBundleStats.numResults / config.dataBundleStats.recordsMatched) * 100
-                                  )}% of ${millify(config.dataBundleStats.recordsMatched)}`}
-                        </>
-                    )}
-                </TextBlock>
-                <div className="right">
-                    <TextBlock
-                        config={config}
-                        className="section-button"
-                        theme={theme}
-                        onClick={() => {
-                            config.toggleMultiline();
-                        }}
-                    >
-                        {config.multiline ? 'Multiline' : 'Single line'}
-                    </TextBlock>
-                    <TextBlock
-                        config={config}
-                        className="section-button"
-                        theme={theme}
-                        onClick={() => {
-                            config.toggleNullVisible();
-                        }}
-                    >
-                        {config.nullVisible ? 'Null Visible' : 'Null Hidden'}
-                    </TextBlock>
-                </div>
-            </SectionDiv>
-            <LogEntriesTable config={state.config} style={{ flexGrow: 1 }} />
+                    </SectionDiv>
+                    <LogEntriesTable config={config} style={{ flexGrow: 1 }} />
+                </>
+            )}
         </AppDiv>
     );
 });
@@ -242,10 +281,31 @@ const SavedSearchSection = styled.div`
     }
 `;
 
-const MainAreaDiv = styled.div`
+const MainAreaDiv = styled.div<{ readonly dashboard: boolean }>`
     padding: 20px 20px 10px 20px;
     display: flex;
     flex-direction: column;
+    overflow: ${(props) => (props.dashboard ? 'hidden' : null)};
+
+    .charts-area-container {
+        flex-grow: 1;
+        overflow: scroll;
+    }
+
+    .charts-area {
+    }
+
+    .chart-title {
+        margin: 15px 0 5px 0;
+        padding: 3px 8px;
+        font-family: ${SERIF_FONT};
+        font-size: 18px;
+        max-width: fit-content;
+    }
+
+    .chart-title:first-child {
+        margin-top: 0;
+    }
 
     .chart {
         flex-grow: 1;

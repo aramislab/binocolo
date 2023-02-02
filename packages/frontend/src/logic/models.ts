@@ -21,6 +21,7 @@ import {
     DataSourceConfig,
     NamedSearch,
     SearchSpec,
+    DataSourceQuery,
 } from '@binocolo/common/common.js';
 import { TimeRange } from '@binocolo/common/types';
 import {
@@ -71,6 +72,7 @@ export type HistogramData = {
     labels: string[];
     timestamps: number[];
     datasets: HistogramSeriesData[];
+    loading: boolean;
 };
 
 export type HistogramSeriesData = {
@@ -80,11 +82,17 @@ export type HistogramSeriesData = {
     buckets: (number | null)[];
 };
 
+type HistogramState = {
+    loading: boolean;
+    dataSeries: HistogramDataSeries[];
+};
+
 export class LogTableConfiguration {
     private preambleProperties: string[];
     public zoom: number;
     public multiline: boolean;
     public nullVisible: boolean;
+    public allSearchesDashboardShown: boolean;
 
     public shownPropertiesSet: Set<string>;
     private preamblePropertiesSet: Set<string>;
@@ -107,8 +115,6 @@ export class LogTableConfiguration {
 
     public timeRanges: TimeRangesSpecs;
 
-    private timestampFieldSelector: JSONFieldSelector;
-
     private timezonesMap: Map<string, TimezoneConfig>;
     public timezoneId: string;
     private timeFormat: TimeFormat;
@@ -116,7 +122,7 @@ export class LogTableConfiguration {
 
     private dataSourceTimeRange: TimeRange;
     public elaboratedTimeRange: ElaboratedTimeRange;
-    public histogram: HistogramDataSeries[] | null;
+    public histograms: Map<string | null, HistogramState>;
     public dataSourceSets: LogTableConfigurationParams['dataSourceSets'];
 
     public savedSearches: NamedSearch[];
@@ -134,6 +140,7 @@ export class LogTableConfiguration {
         this.timeRanges = params.timeRanges;
         this.preambleProperties = params.preambleProperties;
         this.dataSourceSets = params.dataSourceSets;
+        this.allSearchesDashboardShown = false;
 
         this.dataSourcesMap = new Map();
         for (let set of this.dataSourceSets) {
@@ -150,7 +157,6 @@ export class LogTableConfiguration {
 
         this.currentSearch = this.getCurrentDataSource().initialQuery.search;
         this.currentSearchOriginal = cloneDeep(this.currentSearch);
-        this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
         this.timeFormat = {
             timestampFormat: TIMESTAMP_FORMAT,
         };
@@ -179,7 +185,7 @@ export class LogTableConfiguration {
 
         this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
         this.dataSourceTimeRange = this.elaboratedTimeRange.timeRange;
-        this.histogram = null;
+        this.histograms = new Map();
 
         this.updatePropertiesMap();
         this.computePropertiesData();
@@ -205,13 +211,14 @@ export class LogTableConfiguration {
             dataBundleStats: observable.deep,
             timezoneId: observable,
             elaboratedTimeRange: observable.deep,
-            histogram: observable.deep,
+            histograms: observable.deep,
             colorTheme: observable,
             entriesSelection: observable,
             shownPropertiesSet: observable.deep,
             currentDataSourceId: observable,
             savedSearches: observable,
             selectedSavedSearchId: observable,
+            allSearchesDashboardShown: observable,
 
             toggleNullVisible: action,
             togglePropertyVisibility: action,
@@ -232,6 +239,29 @@ export class LogTableConfiguration {
             selectSavedSearch: action,
             saveSearch: action,
             deleteSelectedSearch: action,
+            showAllSearchesDashboard: action,
+        });
+    }
+
+    public showAllSearchesDashboard(): void {
+        this.allSearchesDashboardShown = true;
+        this.loadHistogramsForAllSearches();
+    }
+
+    private loadHistogramsForAllSearches(): void {
+        const queries: DataSourceQuery[] = this.savedSearches.map((search) => ({
+            type: 'buildHistogram',
+            filters: search.spec.filters,
+            histogramBreakdownProperty: search.spec.histogramBreakdownProperty
+                ? parseFieldSelectorText(search.spec.histogramBreakdownProperty)
+                : null,
+            savedSearchId: search.id,
+        }));
+        this.sendMessage({
+            type: 'queryDataSource',
+            dataSourceId: this.currentDataSourceId,
+            timeRange: this.dataSourceTimeRange,
+            queries,
         });
     }
 
@@ -246,6 +276,8 @@ export class LogTableConfiguration {
     }
 
     public selectSavedSearch(search: NamedSearch | null): void {
+        this.allSearchesDashboardShown = false;
+        this.histograms = new Map();
         this.selectedSavedSearchId = search ? search.id : null;
         this.currentSearch = search ? search.spec : this.getCurrentDataSource().initialQuery.search;
         this.currentSearchOriginal = cloneDeep(this.currentSearch);
@@ -344,10 +376,9 @@ export class LogTableConfiguration {
         this.currentSearch = this.getCurrentDataSource().initialQuery.search;
         this.currentSearchOriginal = cloneDeep(this.currentSearch);
         this.savedSearches = this.getCurrentDataSource().savedSearches;
-        this.timestampFieldSelector = parseFieldSelectorText(this.getCurrentDataSource().timestampPropertySelector);
         this.elaboratedTimeRange = elaborateTimeRange(getTimeRangeFromSpecification(this.getCurrentDataSource().initialQuery.timeRange));
         this.dataSourceTimeRange = this.elaboratedTimeRange.timeRange;
-        this.histogram = null;
+        this.histograms = new Map();
 
         this.updatePropertiesMap();
         this.computePropertiesData();
@@ -397,9 +428,9 @@ export class LogTableConfiguration {
             this.getKnownPropertiesMap()
         );
         this.entriesSelection.filterEntries(this.entriesStorage.entries);
-        if (this.resultsComplete()) {
-            this.histogram = this.entriesSelection.getHistogram();
-        }
+        // if (this.resultsComplete()) {
+        //     this.histogram = this.entriesSelection.getHistogram();
+        // }
     }
 
     public toggleNullVisible(): void {
@@ -449,18 +480,18 @@ export class LogTableConfiguration {
                 this.entriesStorage.addEntriesBlock(message.entries);
                 this.numInputEntries += message.entries.length;
                 this.dataBundleStats = message.stats || null;
+                this.loading = false;
                 this.recomputeEntriesSelection();
                 break;
-            case 'doneLoadingEntries':
-                this.loading = false;
-                this.serverError = message.errorMessage || null;
+            case 'serverError':
+                this.serverError = message.errorMessage;
                 break;
             case 'configuration':
                 throw new Error(`Configuration message is not supposed to be seen here`);
             case 'sendHistogram':
                 this.dataSourceTimeRange = message.elaboratedTimeRange.timeRange;
                 this.elaboratedTimeRange = message.elaboratedTimeRange;
-                this.histogram = message.histogram;
+                this.histograms.set(message.savedSearchId, { loading: !message.done, dataSeries: message.histogram });
                 break;
             default:
                 const exhaustiveCheck: never = message;
@@ -486,46 +517,52 @@ export class LogTableConfiguration {
         this.entriesStorage = new LogEntriesStorage();
         this.entriesSelection = new LogEntriesSelection(null, this.getKnownPropertiesMap());
         this.numInputEntries = 0;
-        this.histogram = null;
+        this.histograms = new Map();
         this.loading = true;
         this.dataBundleStats = null;
-        this.sendMessage({
-            type: 'queryDataSource',
-            dataSourceId: this.currentDataSourceId,
-            timeRange: this.dataSourceTimeRange,
-            queries: [
-                {
-                    type: 'fetchEntries',
-                    filters: this.currentSearch.filters,
-                },
-                {
-                    type: 'buildHistogram',
-                    filters: this.currentSearch.filters,
-                    histogramBreakdownProperty: this.currentSearch.histogramBreakdownProperty
-                        ? parseFieldSelectorText(this.currentSearch.histogramBreakdownProperty)
-                        : null,
-                },
-            ],
-        });
-    }
-
-    changeTimeRange(timeRange: TimeRange): void {
-        if (this.resultsComplete()) {
-            this.elaboratedTimeRange = elaborateTimeRange(timeRange);
-            this.recomputeEntriesSelection();
+        if (this.allSearchesDashboardShown) {
+            this.loadHistogramsForAllSearches();
         } else {
-            this.dataSourceTimeRange = timeRange;
-            this.elaboratedTimeRange = elaborateTimeRange(this.dataSourceTimeRange);
-            this.loadEntriesFromDataSource();
+            this.sendMessage({
+                type: 'queryDataSource',
+                dataSourceId: this.currentDataSourceId,
+                timeRange: this.dataSourceTimeRange,
+                queries: [
+                    {
+                        type: 'fetchEntries',
+                        filters: this.currentSearch.filters,
+                    },
+                    {
+                        type: 'buildHistogram',
+                        filters: this.currentSearch.filters,
+                        histogramBreakdownProperty: this.currentSearch.histogramBreakdownProperty
+                            ? parseFieldSelectorText(this.currentSearch.histogramBreakdownProperty)
+                            : null,
+                        savedSearchId: null,
+                    },
+                ],
+            });
         }
     }
 
-    buildHistogramData(): HistogramData {
+    changeTimeRange(timeRange: TimeRange): void {
+        // if (this.resultsComplete()) {
+        //     this.elaboratedTimeRange = elaborateTimeRange(timeRange);
+        //     this.recomputeEntriesSelection();
+        // } else {
+        this.dataSourceTimeRange = timeRange;
+        this.elaboratedTimeRange = elaborateTimeRange(this.dataSourceTimeRange);
+        this.loadEntriesFromDataSource();
+        // }
+    }
+
+    buildHistogramData(savedSearchId: string | null): HistogramData {
         const MAX_NUM_DATASETS = 10;
         const format = (ts: number) => formatDateInTimeZone(ts, this.getTimezoneString(), this.elaboratedTimeRange.bucketSpec.format);
         let datasets: HistogramSeriesData[] = [];
-        if (this.histogram) {
-            const datasetsWithTotals = this.histogram.map(({ propertyValue, datapoints }) => ({
+        const histogram = this.histograms.get(savedSearchId);
+        if (histogram) {
+            const datasetsWithTotals = histogram.dataSeries.map(({ propertyValue, datapoints }) => ({
                 propertyValue,
                 datapoints,
                 total: datapoints.filter(notNullNumber).reduce(sum, 0),
@@ -558,8 +595,9 @@ export class LogTableConfiguration {
             for (let idx = 0; idx < datasetsToPlot.length; idx += 1) {
                 const dataset = datasetsToPlot[idx];
                 datasets.push({
-                    title: this.histogram.length === 1 ? 'Log Lines' : dataset.propertyValue === null ? '<null>' : dataset.propertyValue,
-                    color: this.histogram.length === 1 ? this.colorTheme.datasets.normal : this.colorTheme.datasets.other[idx],
+                    title:
+                        histogram.dataSeries.length === 1 ? 'Log Lines' : dataset.propertyValue === null ? '<null>' : dataset.propertyValue,
+                    color: histogram.dataSeries.length === 1 ? this.colorTheme.datasets.normal : this.colorTheme.datasets.other[idx],
                     buckets: dataset.datapoints,
                     dimmed: dataset.dimmed,
                 });
@@ -569,6 +607,7 @@ export class LogTableConfiguration {
             labels: this.elaboratedTimeRange.timestamps.map(format),
             timestamps: this.elaboratedTimeRange.timestamps,
             datasets,
+            loading: histogram ? histogram.loading : true,
         };
     }
 

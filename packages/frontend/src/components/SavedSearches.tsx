@@ -10,7 +10,24 @@ export const SavedSearches = observer(({ config, close }: { config: LogTableConf
     const currentSearchTitle = config.getSavedSearchTitle();
     return (
         <SavedSearchesContainerDiv config={config}>
-            {/* <SeparatorDiv config={config} /> */}
+            {config.savedSearches.length > 1 && (
+                <>
+                    <CommandsBlockDiv>
+                        <TextBlock
+                            config={config}
+                            className="button"
+                            theme={config.colorTheme.light}
+                            onClick={() => {
+                                close();
+                                config.showAllSearchesDashboard();
+                            }}
+                        >
+                            View Dashboard with all Searches
+                        </TextBlock>
+                    </CommandsBlockDiv>
+                    <SeparatorDiv config={config} />
+                </>
+            )}
             <CommandsBlockDiv>
                 {/* <div className="title">Saved Searches:</div> */}
                 {config.savedSearches.map(({ title, id }) => (
