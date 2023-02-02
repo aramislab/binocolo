@@ -1,6 +1,5 @@
 import { AWSCloudWatchDataSourceSpecification } from '@binocolo/aws/aws-adapter.js';
 import { AWSS3DataSourceSetSpecification } from '@binocolo/aws/aws-s3-config-storage.js';
-import { DataSourceId } from '@binocolo/backend/service.js';
 import { DataSourceSetDescriptor, DataSourceSpecification } from '@binocolo/backend/types';
 import { NamedSearch, UIState } from '@binocolo/common/common.js';
 
