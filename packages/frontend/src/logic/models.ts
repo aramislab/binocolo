@@ -23,6 +23,7 @@ import {
     SearchSpec,
     DataSourceQuery,
     UIState,
+    MatchDataSourceFilter,
 } from '@binocolo/common/common.js';
 import { TimeRange } from '@binocolo/common/types';
 import {
@@ -88,6 +89,12 @@ type HistogramState = {
     dataSeries: HistogramDataSeries[];
 };
 
+type MatchSearchAccumulator = {
+    selector: string;
+    exact: boolean;
+    values: JSONBasicType[];
+};
+
 export class LogTableConfiguration {
     private preambleProperties: string[];
     public zoom: number;
@@ -98,6 +105,8 @@ export class LogTableConfiguration {
     public shownPropertiesSet: Set<string>;
     private preamblePropertiesSet: Set<string>;
     public propertiesData: PropertyData[];
+
+    public matchSearchAccumulator: MatchSearchAccumulator | null;
 
     private supportedDataSourceFilters: PartialDataSourceFilter[];
 
@@ -140,6 +149,8 @@ export class LogTableConfiguration {
         this.preambleProperties = params.preambleProperties;
         this.dataSourceSets = params.dataSourceSets;
         this.uiState = params.initialUIState;
+
+        this.matchSearchAccumulator = null;
 
         this.dataSourcesMap = new Map();
         for (let set of this.dataSourceSets) {
@@ -215,6 +226,7 @@ export class LogTableConfiguration {
             shownPropertiesSet: observable.deep,
             savedSearches: observable,
             uiState: observable.deep,
+            matchSearchAccumulator: observable.deep,
 
             toggleNullVisible: action,
             togglePropertyVisibility: action,
@@ -236,7 +248,28 @@ export class LogTableConfiguration {
             saveSearch: action,
             deleteSelectedSearch: action,
             showAllSearchesDashboard: action,
+            addValueToMatchSearchAccumulator: action,
         });
+    }
+
+    public addValueToMatchSearchAccumulator(selector: string, exact: boolean, value: JSONBasicType): void {
+        if (!this.matchSearchAccumulator) {
+            this.matchSearchAccumulator = {
+                selector,
+                exact,
+                values: [],
+            };
+        } else if (selector !== this.matchSearchAccumulator.selector) {
+            throw new Error(`'Selector mismatch ${selector} !== ${this.matchSearchAccumulator.selector}'`);
+        }
+        this.matchSearchAccumulator.values.push(value);
+    }
+
+    public canAddValueToMatchSearchAccumulator(selector: string, exact: boolean): boolean {
+        return (
+            !this.matchSearchAccumulator ||
+            (this.matchSearchAccumulator.selector === selector && this.matchSearchAccumulator.exact === exact)
+        );
     }
 
     private getInitialSearch(): SearchSpec | null {
@@ -826,6 +859,22 @@ export class LogTableConfiguration {
         }
         this.currentSearch.filters.push(filter);
         this.loadEntriesFromDataSource();
+    }
+
+    addAccumulatedFilter(include: boolean): void {
+        if (!this.matchSearchAccumulator) {
+            return;
+        }
+        const { selector, exact, values } = this.matchSearchAccumulator;
+        const filter: MatchDataSourceFilter = {
+            type: 'match',
+            selector,
+            include,
+            exact,
+            values,
+        };
+        this.addFilter(filter);
+        this.matchSearchAccumulator = null;
     }
 
     removeFilter(filterId: string): void {

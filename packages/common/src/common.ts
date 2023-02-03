@@ -115,6 +115,19 @@ export function isJSONBasicType(value: any): value is JSONBasicType {
     return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null;
 }
 
+export function getJSONBasicTypeName(value: JSONBasicType): JSONBasicTypeName {
+    if (value === null) {
+        return 'null';
+    } else if (typeof value === 'string') {
+        return 'string';
+    } else if (typeof value === 'number') {
+        return 'number';
+    } else if (typeof value === 'boolean') {
+        return 'boolean';
+    }
+    throw new Error('Value is not a JSONBasicType');
+}
+
 export type JSONFieldSelector = JSONFieldSelectorPart[];
 
 export type JSONFieldSelectorPart = JSONFieldSelectorRoot | JSONFieldSelectorCompound | JSONFieldSelectorProperty | JSONFieldSelectorItem;

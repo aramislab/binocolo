@@ -14,8 +14,8 @@ import {
 import { LogTableConfiguration } from '../logic/models.js';
 import { EmptyValue, notEmpty, REFERENCE_TEXT_SIZE, SERIF_FONT } from '../logic/types.js';
 import { JSONType } from '@binocolo/common/common.js';
-import styled from 'styled-components';
 import { getJSONBasicTypeOf, getJSONObjectType, isJSONBasicType } from '../logic/inspect_payload.js';
+import { MenuCommandRowDiv, MenuContainerDiv, MenuFieldTypeDiv, MenuFieldValueDiv, MenuHeaderDiv } from './DialogComponents.js';
 
 export type PopupMenuCommand = {
     title: string;
@@ -78,6 +78,7 @@ export function usePopupMenu({ popup, config }: BuildPopupMenuParams): BuildPopu
                 <MenuContainerDiv
                     ref={floating}
                     {...getFloatingProps()}
+                    config={config}
                     style={{
                         position: strategy,
                         top: y ?? 0,
@@ -105,17 +106,6 @@ export function usePopupMenu({ popup, config }: BuildPopupMenuParams): BuildPopu
     }
     return { popupMenu, onClick, referenceProps, reference };
 }
-
-const MenuContainerDiv = styled.div`
-    width: max-content;
-    max-width: 1200px;
-    background-color: #dad6c4;
-    border-radius: 3px;
-    border: 1px solid #494747;
-    filter: drop-shadow(3px 3px 3px #151515);
-    color: #0e0e0e;
-    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-`;
 
 const MenuContent = ({
     popupData: { title, value, component, commands },
@@ -174,36 +164,6 @@ const MenuContent = ({
     );
 };
 
-const MenuHeaderDiv = styled.div`
-    padding: 6px;
-    border-top-left-radius: 3px;
-    border-top-right-radius: 3px;
-    background-color: #9a9389;
-    margin: 0;
-    font-weight: bold;
-
-    .MenuDivider {
-        padding: 0 0 0 0;
-        margin: 0 0 3px 0;
-        border-bottom: 1px solid black;
-    }
-`;
-
-const MenuFieldTypeDiv = styled.div`
-    padding: 6px 6px 0 6px;
-    margin: 0;
-    white-space: pre;
-    overflow: scroll;
-`;
-
-const MenuFieldValueDiv = styled.div`
-    padding: 6px;
-    margin: 0;
-    white-space: pre;
-    max-height: 200px;
-    overflow: scroll;
-`;
-
 export const MenuCommands = ({
     commands,
     config,
@@ -239,20 +199,3 @@ export const MenuCommands = ({
         ))}
     </div>
 );
-
-const MenuCommandRowDiv = styled.div<{ readonly disabled?: boolean }>`
-    padding: 3px;
-    cursor: pointer;
-    &:hover {
-        background-color: #b9b7a5;
-    }
-    > .MenuCommandIcon {
-        display: inline-block;
-        padding: 0 9px 0 3px;
-    }
-    > .MenuCommandTitle {
-        padding: 3px 6px 3px 0;
-        text-align: left;
-        font-family: ${SERIF_FONT};
-    }
-`;

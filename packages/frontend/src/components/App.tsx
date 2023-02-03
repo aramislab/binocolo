@@ -18,6 +18,7 @@ import { millify } from 'millify';
 import { DataSourcePicker } from './DataSourcePicker.js';
 import { FieldsPicker } from './FieldsPicker.js';
 import { faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
+import { MatchSearchAccumulatorBox } from './MatchSearchAccumulatorBox.js';
 
 const App = observer(({ state }: { state: IApplicationState }) => {
     if (state.terminated) {
@@ -116,25 +117,28 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                     </SavedSearchSection>
                 )}
                 {!dashboardShown && (
-                    <FiltersSection theme={theme} config={config}>
-                        {config.currentSearch &&
-                            config.currentSearch.filters.map((filter) => (
-                                <div key={makeFilterId(filter)} className="filter dataSourceFilter">
-                                    <div className="filter-text">{makeFilterDescription(filter)}</div>
-                                    <TextBlock
-                                        config={config}
-                                        className="button"
-                                        theme={theme}
-                                        button
-                                        onClick={() => {
-                                            config.removeFilter(makeFilterId(filter));
-                                        }}
-                                    >
-                                        <FontAwesomeIcon icon={faXmark} size={'1x'} />
-                                    </TextBlock>
-                                </div>
-                            ))}
-                    </FiltersSection>
+                    <FiltersSectionDiv theme={theme} config={config}>
+                        <div className="filters">
+                            {config.currentSearch &&
+                                config.currentSearch.filters.map((filter) => (
+                                    <div key={makeFilterId(filter)} className="filter dataSourceFilter">
+                                        <div className="filter-text">{makeFilterDescription(filter)}</div>
+                                        <TextBlock
+                                            config={config}
+                                            className="button"
+                                            theme={theme}
+                                            button
+                                            onClick={() => {
+                                                config.removeFilter(makeFilterId(filter));
+                                            }}
+                                        >
+                                            <FontAwesomeIcon icon={faXmark} size={'1x'} />
+                                        </TextBlock>
+                                    </div>
+                                ))}
+                        </div>
+                        {config.matchSearchAccumulator && <MatchSearchAccumulatorBox config={config} className="search-accumulator" />}
+                    </FiltersSectionDiv>
                 )}
                 {dashboardShown ? (
                     <div className="charts-area-container">
@@ -337,38 +341,48 @@ const AppDiv = styled.div<SectionParams>`
     overflow: hidden;
 `;
 
-const FiltersSection = styled.div<{ readonly theme: RegionColorTheme; readonly config: LogTableConfiguration }>`
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+const FiltersSectionDiv = styled.div<{ readonly theme: RegionColorTheme; readonly config: LogTableConfiguration }>`
     margin: 0 0 10px 0;
+    display: flex;
+    flex-direction: row;
 
-    > .filter {
-        font-family: ${MONOSPACE_FONT};
-        font-size: 12px;
+    .filters {
         display: flex;
+        flex-grow: 1;
         flex-direction: row;
         align-items: center;
-        background-color: ${(props) => props.theme.lightBackground};
-        border: 1px solid ${(props) => props.theme.lines};
-        padding: 2px 2px 2px 5px;
-        margin: 2px 3px;
-        border-radius: 5px;
-        > .filter-text {
-            max-width: 300px;
-            overflow: scroll;
-            white-space: nowrap;
+        flex-wrap: wrap;
+
+        > .filter {
+            font-family: ${MONOSPACE_FONT};
+            font-size: 12px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            background-color: ${(props) => props.theme.lightBackground};
+            border: 1px solid ${(props) => props.theme.lines};
+            padding: 2px 2px 2px 5px;
+            margin: 2px 3px;
+            border-radius: 5px;
+            > .filter-text {
+                max-width: 300px;
+                overflow: scroll;
+                white-space: nowrap;
+            }
+            > .button {
+                padding: 1px 3px;
+                margin: 0 0 0 5px;
+            }
         }
-        > .button {
-            padding: 1px 3px;
-            margin: 0 0 0 5px;
+        > .filter:first-child {
+            margin-left: 0;
+        }
+        > .dataSourceFilter {
+            background-color: ${(props) => props.config.colorTheme.popup.datasource};
         }
     }
-    > .filter:first-child {
-        margin-left: 0;
-    }
-    > .dataSourceFilter {
-        background-color: ${(props) => props.config.colorTheme.popup.datasource};
+
+    .search-accumulator {
     }
 `;
 

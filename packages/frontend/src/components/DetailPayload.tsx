@@ -1,6 +1,6 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faAdd, faMinus } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faAdd, faMinus, faShare } from '@fortawesome/free-solid-svg-icons';
 import {
     PayloadIntrospection,
     ObjectIntrospection,
@@ -194,17 +194,19 @@ const DetailBasic = observer(
 export const propertyValuePopupFactory =
     ({ config, selector, value }: { config: LogTableConfiguration; selector: JSONFieldSelector; value?: JSONType }): PopupMenuFactory =>
     () => {
-        // const canToggleVisibility = config.canToggleVisibility(selector);
-        // const columnShown = config.isPropertyShown(selector);
+        const selectorText = makeStringFromJSONFieldSelector(selector);
         const onClick = (include: boolean, value: JSONBasicType, selectedText: string | null) => () => {
             const filter: MatchDataSourceFilter = {
                 type: 'match',
-                selector: makeStringFromJSONFieldSelector(selector),
+                selector: selectorText,
                 include,
                 exact: selectedText === null,
                 values: [selectedText !== null ? selectedText : value],
             };
             config.addFilter(filter);
+        };
+        const onAccumulate = (value: JSONBasicType, selectedText: string | null) => () => {
+            config.addValueToMatchSearchAccumulator(selectorText, selectedText === null, selectedText !== null ? selectedText : value);
         };
         return {
             title: makeStringFromJSONFieldSelector(selector),
@@ -215,6 +217,11 @@ export const propertyValuePopupFactory =
                         <IconButton config={config} icon={faAdd} onClick={onClick(true, value, getSelectedText())} />
                         <IconButton config={config} icon={faMinus} onClick={onClick(false, value, getSelectedText())} />
                         <div className="match-type">{getSelectedText() === null ? 'Exact match' : 'Substring match'}</div>
+                        {config.canAddValueToMatchSearchAccumulator(selectorText, getSelectedText() === null) && (
+                            <div className="right">
+                                <IconButton config={config} icon={faShare} onClick={onAccumulate(value, getSelectedText())} />
+                            </div>
+                        )}
                     </ValueOperationsDiv>
                 ),
         };
@@ -228,5 +235,11 @@ const ValueOperationsDiv = styled.div`
 
     .match-type {
         margin-left: 10px;
+    }
+
+    .right {
+        flex-grow: 1;
+        display: flex;
+        justify-content: end;
     }
 `;
