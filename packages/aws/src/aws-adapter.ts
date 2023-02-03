@@ -67,7 +67,6 @@ export class CloudwatchLogsAdapter implements IDataSourceAdapter {
                 considerNulls: true,
             },
         ],
-        timestampPropertySelector: '@timestamp',
     };
     public defaultQuery: DataSourceConfig['initialQuery'] = {
         search: {

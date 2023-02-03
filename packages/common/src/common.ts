@@ -243,7 +243,6 @@ export type DataSourceConfig = {
     name: string;
     knownProperties: PropertyConfiguration[];
     supportedFilters: PartialDataSourceFilter[];
-    timestampPropertySelector: string;
     initialQuery: {
         timeRange: TimeRangeSpecification;
         search: SearchSpec;
@@ -251,7 +250,7 @@ export type DataSourceConfig = {
     savedSearches: NamedSearch[];
 };
 
-export type DataSourceSpecs = Pick<DataSourceConfig, 'supportedFilters' | 'timestampPropertySelector'>;
+export type DataSourceSpecs = Pick<DataSourceConfig, 'supportedFilters'>;
 
 export type TimeRangeSpecification = RelativeTimeRangeSpecification;
 
