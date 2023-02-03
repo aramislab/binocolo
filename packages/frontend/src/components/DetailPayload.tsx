@@ -196,30 +196,37 @@ export const propertyValuePopupFactory =
     () => {
         // const canToggleVisibility = config.canToggleVisibility(selector);
         // const columnShown = config.isPropertyShown(selector);
-        const onClick = (include: boolean, value: JSONBasicType) => () => {
+        const onClick = (include: boolean, value: JSONBasicType, selectedText: string | null) => () => {
             const filter: MatchDataSourceFilter = {
                 type: 'match',
                 selector: makeStringFromJSONFieldSelector(selector),
                 include,
-                exact: true,
-                values: [value],
+                exact: selectedText === null,
+                values: [selectedText !== null ? selectedText : value],
             };
             config.addFilter(filter);
         };
         return {
             title: makeStringFromJSONFieldSelector(selector),
             value,
-            component: isJSONBasicType(value) && (
-                <ValueOperationsDiv>
-                    <IconButton config={config} icon={faAdd} onClick={onClick(true, value)} />
-                    <IconButton config={config} icon={faMinus} onClick={onClick(false, value)} />
-                </ValueOperationsDiv>
-            ),
+            component: ({ getSelectedText }) =>
+                isJSONBasicType(value) && (
+                    <ValueOperationsDiv>
+                        <IconButton config={config} icon={faAdd} onClick={onClick(true, value, getSelectedText())} />
+                        <IconButton config={config} icon={faMinus} onClick={onClick(false, value, getSelectedText())} />
+                        <div className="match-type">{getSelectedText() === null ? 'Exact match' : 'Substring match'}</div>
+                    </ValueOperationsDiv>
+                ),
         };
     };
 
 const ValueOperationsDiv = styled.div`
     margin: 5px 8px 10px 8px;
     display: flex;
-    justify-content: end;
+    justify-content: start;
+    align-items: center;
+
+    .match-type {
+        margin-left: 10px;
+    }
 `;

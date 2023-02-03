@@ -45,7 +45,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                             theme={theme}
                             popup={({ close }) => ({
                                 title: 'Data Sources',
-                                component: <DataSourcePicker config={config} close={close} />,
+                                component: () => <DataSourcePicker config={config} close={close} />,
                             })}
                         >
                             {config.getDataSourceName()}
@@ -58,7 +58,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                                 // button
                                 popup={({ close }) => ({
                                     title: 'Fields',
-                                    component: <FieldsPicker config={config} close={close} />,
+                                    component: () => <FieldsPicker config={config} close={close} />,
                                 })}
                             >
                                 Fields
@@ -107,7 +107,7 @@ const App = observer(({ state }: { state: IApplicationState }) => {
                             button
                             popup={({ close }) => ({
                                 title: 'Saved Searches',
-                                component: <SavedSearches config={config} close={close} />,
+                                component: () => <SavedSearches config={config} close={close} />,
                             })}
                         >
                             <FontAwesomeIcon icon={faBars} size={'xs'} />

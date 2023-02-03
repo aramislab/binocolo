@@ -22,7 +22,7 @@ export const TimeRangeControl = observer(({ config }: { config: LogTableConfigur
     } = usePopupMenu({
         popup: ({ close }) => ({
             title: 'Data Source Parameters',
-            component: <DataSourceConfiguration config={config} close={close} />,
+            component: () => <DataSourceConfiguration config={config} close={close} />,
         }),
         config,
     });

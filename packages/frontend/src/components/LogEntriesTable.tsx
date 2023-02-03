@@ -199,7 +199,7 @@ const propertyFieldPopupFactory =
         // const columnShown = config.isPropertyShown(selector);
         return {
             title: <PropertyHeaderTitle config={config} selector={selector} />,
-            component: (
+            component: () => (
                 <ContentsDiv>
                     <PropertyHeaderView config={config} selector={selector} close={close} />
                 </ContentsDiv>

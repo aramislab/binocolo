@@ -30,7 +30,7 @@ export type PopupMenuConfig = {
     title: React.ReactNode;
     value?: JSONType;
     commands?: (PopupMenuCommand | EmptyValue)[];
-    component?: React.ReactNode;
+    component?: (params: { getSelectedText: () => string | null }) => React.ReactNode;
 };
 
 type BuildPopupMenuParams = {
@@ -125,22 +125,54 @@ const MenuContent = ({
     popupData: PopupMenuConfig;
     config: LogTableConfiguration;
     close: () => void;
-}) => (
-    <>
-        <MenuHeaderDiv className="MenuHeader">{title}</MenuHeaderDiv>
-        {value !== undefined && (
-            <>
-                <MenuFieldTypeDiv>{`${getJSONObjectType(value)}${
-                    isJSONBasicType(value) ? `: ${getJSONBasicTypeOf(value)}` : ''
-                }`}</MenuFieldTypeDiv>
-                <MenuFieldValueDiv>{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</MenuFieldValueDiv>
-            </>
-        )}
-        {value !== undefined && commands && commands.length > 0 && <div className="MenuDivider" />}
-        {commands && <MenuCommands commands={commands} config={config} close={close} />}
-        {component}
-    </>
-);
+}) => {
+    const [selectedTextInDocument, setSelectedTextInDocument] = React.useState<string | null>(null);
+    const [selectedText, setSelectedText] = React.useState<string | null>(null);
+    const onSelectionChange = () => {
+        const selection = document.getSelection();
+        if (selection) {
+            const text = selection.toString();
+            if (text.length > 0) {
+                setSelectedTextInDocument(text);
+            } else {
+                // Delay clearing the selected text buffer to allow clicking buttons (which might clear the current selection)
+                setTimeout(() => {
+                    setSelectedTextInDocument(null);
+                    setSelectedText(null);
+                }, 50);
+            }
+        }
+    };
+    React.useEffect(() => {
+        document.addEventListener('selectionchange', onSelectionChange);
+        return () => {
+            document.removeEventListener('selectionchange', onSelectionChange);
+        };
+    }, []);
+    const onMouseUp = () => {
+        if (typeof value === 'string') {
+            setSelectedText(selectedTextInDocument);
+        }
+    };
+    return (
+        <>
+            <MenuHeaderDiv className="MenuHeader">{title}</MenuHeaderDiv>
+            {value !== undefined && (
+                <>
+                    <MenuFieldTypeDiv>{`${getJSONObjectType(value)}${
+                        isJSONBasicType(value) ? `: ${getJSONBasicTypeOf(value)}` : ''
+                    }`}</MenuFieldTypeDiv>
+                    <MenuFieldValueDiv onMouseUp={onMouseUp}>
+                        {typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
+                    </MenuFieldValueDiv>
+                </>
+            )}
+            {value !== undefined && commands && commands.length > 0 && <div className="MenuDivider" />}
+            {commands && <MenuCommands commands={commands} config={config} close={close} />}
+            {component && component({ getSelectedText: () => selectedText })}
+        </>
+    );
+};
 
 const MenuHeaderDiv = styled.div`
     padding: 6px;

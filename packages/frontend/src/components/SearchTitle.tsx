@@ -25,7 +25,7 @@ export const SearchTitle = observer(({ config, className }: { config: LogTableCo
     const popup = ({ close }: { close: () => void }): PopupMenuConfig => {
         return {
             title: 'Delete Search',
-            component: (
+            component: () => (
                 <DeleteDialogDiv>
                     <p>
                         Are you sure you want to delete the saved search named "<b>{originalTitle}</b>"?
